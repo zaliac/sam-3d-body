@@ -30,11 +30,17 @@ for epoch in range(25):
     total = 0
 
     for b in loader:
-        img = b["image"].to(device)     # Tensor: (2,3,512,512)
-        # gt_v = b["vertices"].to(device)
-        gt_c = b["contact"].to(device)
+        batch = {k: v.to(device) for k, v in b.items()}  # move each tensor
 
-        out = model(img)
+        # img = b["image"].to(device)     # Tensor: (2,3,512,512)
+        # gt_v = b["vertices"].to(device)
+        # gt_c = b["contact"].to(device)
+        gt_c = batch["contact"]
+
+
+        batch['img']=batch['img'].unsqueeze(1)
+
+        out = model(batch)
 
         # loss = (
         #     contact_loss(out["contact"], gt_c)

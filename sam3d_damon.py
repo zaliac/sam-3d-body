@@ -23,8 +23,8 @@ class Sam3DWithContact(nn.Module):
             hidden_dim=128
         )
 
-    def forward(self, images):
-        out = self.sam3d(images)
+    def forward(self, batch):
+        out = self.sam3d(batch)
 
         vertex_features = out["vertex_features"]  # (B,V,256)
         contact = self.contact_head(vertex_features)

@@ -38,7 +38,7 @@ class DamonDataset(Dataset):
         img = self.transform(img)
 
         return {
-            "image": img,
+            "img": img,
             # "vertices": torch.tensor(s["smpl_vertices"]).float(),
             "contact": torch.tensor(s['vertices']).long()     # "contact_labels"
         }

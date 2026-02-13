@@ -25,8 +25,9 @@ class BaseModel(BaseLightningModule):
         self._initialze_model(**kwargs)
 
         # Initialize attributes for image-based batch format
-        self._max_num_person = None
+        self._max_num_person = 1     # TODO  None->1
         self._person_valid = None
+        self._batch_size = 2
 
     @abstractmethod
     def _initialze_model(self, **kwargs) -> None:
