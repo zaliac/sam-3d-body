@@ -100,9 +100,12 @@ def main(args):
         #     rend_img.astype(np.uint8),
         # )
 
-        # for k, v in batch.items():
-        #     if torch.is_tensor(v):
-        #         batch[k] = v.cpu()
+        batch['img']=None
+        batch['img_ori']=None
+        for k, v in batch.items():
+            if torch.is_tensor(v):
+                batch[k] = v.cpu()
+
         batches.append(batch)
         i+=1
         if i==19:
@@ -123,7 +126,7 @@ def main(args):
     # change data from cuda to cpu
 
 
-    torch.save(batches, "batch_20.pt")
+    torch.save(batches, "batch_20_simple.pt")
     pass
 
 
