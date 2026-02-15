@@ -10,6 +10,7 @@ from damon_dataset import DamonDataset
 from sam3d_damon import Sam3DWithContact
 from damon_loss import contact_loss, mesh_loss
 import numpy as np
+from sam_3d_body.utils import recursive_to
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -30,17 +31,17 @@ for epoch in range(25):
     total = 0
 
     for b in loader:
-
-
         # TODO: load batch by b["id"], then put to cuda
         i = b["id"]
         batch = np.load(f"{output_folder}/batch_{i}.pt", allow_pickle=True)
         if batch:
             # batch = {k: v.to(device) for k, v in b.items()}  # move each tensor
             b = {k: v.to(device) for k, v in b.items()}
-            for k, v in batch.items():
-                if torch.is_tensor(v):
-                    batch[k] = v.cuda()
+            b = recursive_to(b, "cuda")
+            batch = recursive_to(batch, "cuda")
+            # for k, v in batch.items():
+            #     if torch.is_tensor(v):
+            #         batch[k] = v.cuda()
             # img = b["image"].to(device)     # Tensor: (2,3,512,512)
             # gt_v = b["vertices"].to(device)
             # gt_c = b["contact"].to(device)
