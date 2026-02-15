@@ -10,9 +10,9 @@ baseURL = '/home/l_z80934/projects/zip/damon/train/'
 # np.savetxt("data_0.txt", data_contact[0])
 
 
-img = np.load(baseURL+"imgname.npy", allow_pickle=True)     # (4384)
-np.savetxt("img_0.txt", img[0])
-print(img[0])
+# img = np.load(baseURL+"imgname.npy", allow_pickle=True)     # (4384)
+# np.savetxt("img_0.txt", img[0])
+# print(img[0])
 
 
 
@@ -85,4 +85,6 @@ print(img[0])
 # objects = np.load(baseURL+"cam_k.npy", allow_pickle=True)       # (4384, 3, 3)
 # np.savetxt("cam_k_0.txt", objects[0])
 # print(objects[0])
+
+
 

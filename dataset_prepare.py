@@ -22,9 +22,11 @@ from tqdm import tqdm
 
 def main(args):
     if args.output_folder == "":
-        output_folder = os.path.join("./output", os.path.basename(args.image_folder))
+        # output_folder = os.path.join("./output", os.path.basename(args.image_folder))
+        output_folder = "./datasets/damon"
     else:
         output_folder = args.output_folder
+
 
     os.makedirs(output_folder, exist_ok=True)
 
@@ -84,32 +86,33 @@ def main(args):
         ]
     )
     images_list = np.load("imgname.npy", allow_pickle=True)
-    batches = []
+    # batches = []
     i = 0
-    for image_path in tqdm(images_list):
-        batch = estimator.process_one_image_for_dataset(
-            image_path,
-            bbox_thr=args.bbox_thresh,
-            use_mask=args.use_mask,
-        )
+    # for image_path in tqdm(images_list, miniters=100):
+    for i, image_path in enumerate(images_list):
+        if i>1158:
+            batch = estimator.process_one_image_for_dataset(
+                image_path,
+                bbox_thr=args.bbox_thresh,
+                use_mask=args.use_mask,
+            )
 
-        # img = cv2.imread(image_path)
-        # rend_img = visualize_sample_together(img, outputs, estimator.faces)
-        # cv2.imwrite(
-        #     f"{output_folder}/{os.path.basename(image_path)[:-4]}.jpg",
-        #     rend_img.astype(np.uint8),
-        # )
+            # img = cv2.imread(image_path)
+            # rend_img = visualize_sample_together(img, outputs, estimator.faces)
+            # cv2.imwrite(
+            #     f"{output_folder}/{os.path.basename(image_path)[:-4]}.jpg",
+            #     rend_img.astype(np.uint8),
+            # )
 
-        batch['img']=None
-        batch['img_ori']=None
-        for k, v in batch.items():
-            if torch.is_tensor(v):
-                batch[k] = v.cpu()
+            # batch["img"]=None
+            # batch["img_ori"]=None
 
-        batches.append(batch)
-        i+=1
-        if i==19:
-            break
+            if batch:
+                for k, v in batch.items():
+                    if torch.is_tensor(v):
+                        batch[k] = v.cpu()
+
+                torch.save(batch, f"{output_folder}/batch_{i}.pt")
 
     # merge batch
     # merged_batch = {}
@@ -126,7 +129,8 @@ def main(args):
     # change data from cuda to cpu
 
 
-    torch.save(batches, "batch_20_simple.pt")
+    # torch.save(batches, "batch_no_img_imgori.pt")
+    # torch.save(batches, "batch_damon.pt")
     pass
 
 
@@ -148,7 +152,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--image_folder",
-        required=True,
+        # required=True,
+        default="",
         type=str,
         help="Path to folder containing input images",
     )

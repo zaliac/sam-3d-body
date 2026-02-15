@@ -261,7 +261,7 @@ class SAM3DBodyEstimator:
 
     def process_one_image_for_dataset(
         self,
-        img: Union[str, np.ndarray],
+        image_path: Union[str, np.ndarray],
         bboxes: Optional[np.ndarray] = None,
         masks: Optional[np.ndarray] = None,
         cam_int: Optional[np.ndarray] = None,
@@ -300,7 +300,7 @@ class SAM3DBodyEstimator:
         # else:
         #     print("####### Please make sure the input image is in RGB format")
         #     image_format = "rgb"
-        img = load_image(img, backend="cv2", image_format="bgr")
+        img = load_image(image_path, backend="cv2", image_format="bgr")    # TODO: load img, ndarray(480,640,3)
         image_format = "bgr"
         height, width = img.shape[:2]
 

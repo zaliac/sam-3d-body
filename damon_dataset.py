@@ -15,10 +15,10 @@ class DamonDataset(Dataset):
         self.samples = samples
         self.img_size = img_size
 
-        self.transform = transforms.Compose([
-            transforms.Resize((img_size, img_size)),
-            transforms.ToTensor()
-        ])
+        # self.transform = transforms.Compose([
+        #     transforms.Resize((img_size, img_size)),
+        #     transforms.ToTensor()
+        # ])
 
     def __len__(self):
         return len(self.samples)
@@ -33,12 +33,15 @@ class DamonDataset(Dataset):
         # img = img.permute(2, 0, 1)
         # imgurl=os.path.abspath(s["imgname"])
         # img = Image.open(imgurl)      # s["imgname"]    .convert("RGB")
-        img = Image.open(s["imgname"]).convert('RGB')
+        # img = Image.open(s["imgname"]).convert('RGB')
         # img = transforms.ToTensor()(img)    # Tensor: (3,500,332):[[[0.67059,0.76078,0.82353,0.78431,0.71765,0.62353,0.45490,0.38431,0.41961,...],...],...]
-        img = self.transform(img)
+        # img = self.transform(img)
 
         return {
-            "img": img,
+            "id": idx,
+            "image_path": s["imgname"],
             # "vertices": torch.tensor(s["smpl_vertices"]).float(),
+            "pose":s["pose"],           # (4384, 72)
+            "shape":s["shape"],         # (4384, 10)
             "contact": torch.tensor(s['vertices']).long()     # "contact_labels"
         }
