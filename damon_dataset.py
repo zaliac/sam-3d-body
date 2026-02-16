@@ -41,7 +41,8 @@ class DamonDataset(Dataset):
             "id": idx,
             "image_path": s["imgname"],
             # "vertices": torch.tensor(s["smpl_vertices"]).float(),
-            "pose":s["pose"],           # (4384, 72)
-            "shape":s["shape"],         # (4384, 10)
+            # TODO: add pose, shape
+            # "pose":s["pose"],           # (4384, 72)
+            # "shape":s["shape"],         # (4384, 10)
             "contact": torch.tensor(s['vertices']).long()     # "contact_labels"
         }

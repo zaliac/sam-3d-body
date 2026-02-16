@@ -162,14 +162,14 @@ class SAM3DBodyEstimator:
 
         # Handle camera intrinsics
         # - either provided externally or generated via default FOV estimator
-        if cam_int is not None:
+        if cam_int is not None:         # None
             print("Using provided camera intrinsics...")
             cam_int = cam_int.to(batch["img"])
             batch["cam_int"] = cam_int.clone()
         elif self.fov_estimator is not None:
             print("Running FOV estimator ...")
             input_image = batch["img_ori"][0].data      # ndarray(780,1174,3)
-            cam_int = self.fov_estimator.get_cam_intrinsics(input_image).to(
+            cam_int = self.fov_estimator.get_cam_intrinsics(input_image).to(        # cam_int: Tensor(1,3,3)
                 batch["img"]
             )
             batch["cam_int"] = cam_int.clone()      # Tensor:(1,3,3) =tensor([[[1.3840e+03, 0.0000e+00, 5.8700e+02],[0.0000e+00, 1.3840e+03, 3.9000e+02],[0.0000e+00, 0.0000e+00, 1.0000e+00]]], device='cuda:0')
@@ -192,7 +192,7 @@ class SAM3DBodyEstimator:
         out = recursive_to(out, "cpu")
         out = recursive_to(out, "numpy")
         all_out = []
-        for idx in range(batch["img"].shape[1]):
+        for idx in range(batch["img"].shape[1]):        # batch["img"]: (1,1,3,512,512)
             all_out.append(
                 {
                     "bbox": batch["bbox"][0, idx].cpu().numpy(),

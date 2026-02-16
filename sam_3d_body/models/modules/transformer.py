@@ -171,11 +171,11 @@ class FFN(nn.Module):
 
         The function would add x to the output tensor if residue is None.
         """
-        out = self.layers(x)
-        out = self.gamma2(out)
-        if not self.add_identity:
+        out = self.layers(x)        # x: (1,145,1024),out:(1,145,1024)
+        out = self.gamma2(out)      # out:(1,145,1024)
+        if not self.add_identity:       # True
             return self.dropout_layer(out)
-        if identity is None:
+        if identity is None:        # identity: (1,145,1024)
             identity = x
         return identity + self.dropout_layer(out)
 
@@ -630,10 +630,10 @@ class TransformerDecoderLayer(nn.Module):
         x = x + self.cross_attn(q=q, k=k, v=v)
 
         # MLP block
-        x = self.ffn(self.ln3(x), identity=x)
+        x = self.ffn(self.ln3(x), identity=x)       # x: (1,145,1024)
 
         # (Optional) Cross attention block, image embeddings attending to tokens
-        if self.enable_twoway:
+        if self.enable_twoway:      # not run: enable_twoway=False
             if self.repeat_pe and context_pe is not None:
                 q = self.ln4_1(context) + context_pe
                 k = self.ln4_2(x) + x_pe

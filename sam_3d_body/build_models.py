@@ -26,13 +26,13 @@ def load_sam_3d_body(checkpoint_path: str = "", device: str = "cuda", mhr_path: 
     model_cfg.freeze()
 
     # Initialze the model
-    model = SAM3DBody(model_cfg)
+    model = SAM3DBody(model_cfg)        # BaseModel: self._initialze_model()
 
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     if "state_dict" in checkpoint:
         state_dict = checkpoint["state_dict"]
     else:
-        state_dict = checkpoint
+        state_dict = checkpoint     # here
     load_state_dict(model, state_dict, strict=False)
 
     model = model.to(device)

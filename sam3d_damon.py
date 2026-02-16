@@ -28,7 +28,8 @@ class Sam3DWithContact(nn.Module):
 
         vertex_features = out["vertex_features"]  # (B,V,256)
         contact = self.contact_head(vertex_features)
-
+        # TODO:
+        out_mhr = out["mhr"]
         return {
             "vertices": out["vertices"],
             "contact_logits": contact["logits"],

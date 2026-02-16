@@ -32,11 +32,12 @@ for epoch in range(25):
 
     for b in loader:
         # TODO: load batch by b["id"], then put to cuda
-        i = b["id"]
-        batch = np.load(f"{output_folder}/batch_{i}.pt", allow_pickle=True)
+        i = 0   # b["id"]
+        batch = torch.load(f"{output_folder}/batch_{i}.pt", map_location="cpu",weights_only=False)
+
         if batch:
             # batch = {k: v.to(device) for k, v in b.items()}  # move each tensor
-            b = {k: v.to(device) for k, v in b.items()}
+            # b = {k: v.to(device) for k, v in b.items()}
             b = recursive_to(b, "cuda")
             batch = recursive_to(batch, "cuda")
             # for k, v in batch.items():

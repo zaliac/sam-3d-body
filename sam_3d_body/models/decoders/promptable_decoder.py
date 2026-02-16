@@ -146,7 +146,7 @@ class PromptableDecoder(nn.Module):
 
             if self.do_interm_preds and layer_idx < len(self.layers) - 1:
                 curr_pose_output = token_to_pose_output_fn(
-                    self.norm_final(token_embedding),
+                    self.norm_final(token_embedding),       # (1,145,1024)
                     prev_pose_output=(
                         all_pose_outputs[-1] if len(all_pose_outputs) > 0 else None
                     ),
@@ -154,13 +154,13 @@ class PromptableDecoder(nn.Module):
                 )
                 all_pose_outputs.append(curr_pose_output)
 
-                if self.keypoint_token_update:
+                if self.keypoint_token_update:      # True
                     assert keypoint_token_update_fn is not None
                     token_embedding, token_augment, _, _ = keypoint_token_update_fn(
                         token_embedding, token_augment, curr_pose_output, layer_idx
                     )
 
-        out = self.norm_final(token_embedding)
+        out = self.norm_final(token_embedding)      # Tensor(1,145,1024)
 
         if self.do_interm_preds:
             curr_pose_output = token_to_pose_output_fn(

@@ -355,40 +355,40 @@ class SAM3DBody(BaseModel):
         # Create promptable decoder
         self.decoder = build_decoder(
             self.cfg.MODEL.DECODER, context_dim=self.backbone.embed_dims
-        )
+        )       # PromptableDecoder
         # shared config for the two decoders
         self.decoder_hand = build_decoder(
             self.cfg.MODEL.DECODER, context_dim=self.backbone.embed_dims
-        )
-        self.hand_pe_layer = PositionEmbeddingRandom(self.backbone.embed_dims // 2)
+        )       # PromptableDecoder
+        self.hand_pe_layer = PositionEmbeddingRandom(self.backbone.embed_dims // 2)     # 1280 -> (2,640)
 
         # Manually convert the torso of the model to fp16.
-        if self.cfg.TRAIN.USE_FP16:
+        if self.cfg.TRAIN.USE_FP16:     # True
             self.convert_to_fp16()
             if self.cfg.TRAIN.get("FP16_TYPE", "float16") == "float16":
                 self.backbone_dtype = torch.float16
             else:
-                self.backbone_dtype = torch.bfloat16
+                self.backbone_dtype = torch.bfloat16        # here
         else:
             self.backbone_dtype = torch.float32
 
         self.ray_cond_emb = CameraEncoder(
-            self.backbone.embed_dim,
-            self.backbone.patch_size,
-        )
+            self.backbone.embed_dim,        # 1280
+            self.backbone.patch_size,       # 16
+        )       # Conv2d(1379, 1280, kernel_size=(1, 1), stride=(1, 1), bias=False)
         self.ray_cond_emb_hand = CameraEncoder(
             self.backbone.embed_dim,
             self.backbone.patch_size,
-        )
+        )       # Conv2d(1379, 1280, kernel_size=(1, 1), stride=(1, 1), bias=False)
 
-        self.keypoint_embedding_idxs = list(range(70))
+        self.keypoint_embedding_idxs = list(range(70))      # [0,1,2,...,69]
         self.keypoint_embedding = nn.Embedding(
             len(self.keypoint_embedding_idxs), self.cfg.MODEL.DECODER.DIM
-        )
-        self.keypoint_embedding_idxs_hand = list(range(70))
+        )   # weight:(70,1024)
+        self.keypoint_embedding_idxs_hand = list(range(70)) # [0,1,2,...,69]
         self.keypoint_embedding_hand = nn.Embedding(
             len(self.keypoint_embedding_idxs_hand), self.cfg.MODEL.DECODER.DIM
-        )
+        )   # weight:(70,1024)
 
         if self.cfg.MODEL.DECODER.get("DO_HAND_DETECT_TOKENS", False):
             self.hand_box_embedding = nn.Embedding(
@@ -442,8 +442,8 @@ class SAM3DBody(BaseModel):
         )
         self.keypoint3d_posemb_linear_hand = FFN(
             embed_dims=3,
-            feedforward_channels=self.cfg.MODEL.DECODER.DIM,
-            output_dims=self.cfg.MODEL.DECODER.DIM,
+            feedforward_channels=self.cfg.MODEL.DECODER.DIM,        # 1024
+            output_dims=self.cfg.MODEL.DECODER.DIM,                 # 1024
             num_fcs=2,
             add_identity=False,
         )
@@ -669,16 +669,16 @@ class SAM3DBody(BaseModel):
         # We're doing intermediate model predictions
         def token_to_pose_output_fn(tokens, prev_pose_output, layer_idx):
             # Get the pose token
-            pose_token = tokens[:, 0]
+            pose_token = tokens[:, 0]       # tokens: (1,145,1024), pose_token: (1,1024)
 
-            prev_pose = init_pose.view(batch_size, -1)
-            prev_camera = init_camera.view(batch_size, -1)
+            prev_pose = init_pose.view(batch_size, -1)      # Tensor(1,519)
+            prev_camera = init_camera.view(batch_size, -1)  # Tensor(1,3)
 
             # Get pose outputs
             pose_output = self.head_pose(pose_token, prev_pose)
             # Get Camera Translation
-            if hasattr(self, "head_camera"):
-                pred_cam = self.head_camera(pose_token, prev_camera)
+            if hasattr(self, "head_camera"):        # True
+                pred_cam = self.head_camera(pose_token, prev_camera)        # pose_token:(1,1024), prev_camera:(1,3) -> (1,3)
                 pose_output["pred_cam"] = pred_cam
             # Run camera projection
             pose_output = self.camera_project(pose_output, batch)
@@ -688,7 +688,7 @@ class SAM3DBody(BaseModel):
                 batch, pose_output["pred_keypoints_2d"], self.body_batch_idx
             )
 
-            return pose_output
+            return pose_output      # here
 
         kp_token_update_fn = self.keypoint_token_update_fn
 
@@ -986,7 +986,7 @@ class SAM3DBody(BaseModel):
             # for x2 resolution
             mask_embeddings = mask_embeddings[:, :, :, 4:-4]
 
-        mask_score = self._flatten_person(batch["mask_score"]).view(-1, 1, 1, 1)
+        mask_score = self._flatten_person(batch["mask_score"]).view(-1, 1, 1, 1)    # tensor([[[[0.]]]], device='cuda:0')
         mask_embeddings = torch.where(
             mask_score > 0,
             mask_score * mask_embeddings.to(image_embeddings),
@@ -1326,7 +1326,7 @@ class SAM3DBody(BaseModel):
 
         # Forward promptable decoder to get updated pose tokens and regression output
         pose_output, pose_output_hand = None, None
-        if len(self.body_batch_idx):
+        if len(self.body_batch_idx):        # here
             tokens_output, pose_output = self.forward_decoder(
                 image_embeddings[self.body_batch_idx],
                 init_estimate=None,
@@ -1409,8 +1409,8 @@ class SAM3DBody(BaseModel):
 
     def run_inference(
         self,
-        img,
-        batch: Dict,
+        img,    # ndarray(780,1174,3)
+        batch: Dict,        # {dict:16}
         inference_type: str = "full",
         transform_hand: Any = None,
         thresh_wrist_angle=1.4,
@@ -1437,7 +1437,7 @@ class SAM3DBody(BaseModel):
             ValueError("Invalid inference type: ", inference_type)
 
         # Step 1. For full-body inference, we first inference with the body decoder.
-        pose_output = self.forward_step(batch, decoder_type="body")
+        pose_output = self.forward_step(batch, decoder_type="body")           # inference_type = "full"
         left_xyxy, right_xyxy = self._get_hand_box(pose_output, batch)
         ori_local_wrist_rotmat = roma.euler_to_rotmat(
             "XZY",
