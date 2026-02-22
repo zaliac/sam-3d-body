@@ -6,9 +6,9 @@ from .mhr_head import MHRHead
 
 
 def build_head(cfg, head_type="mhr", enable_hand_model=False, default_scale_factor=1.0):
-    if head_type == "mhr":
+    if head_type == "mhr":  # here
         return MHRHead(
-            input_dim=cfg.MODEL.DECODER.DIM,
+            input_dim=cfg.MODEL.DECODER.DIM,        # 1024
             mlp_depth=cfg.MODEL.MHR_HEAD.get("MLP_DEPTH", 1),
             mhr_model_path=cfg.MODEL.MHR_HEAD.MHR_MODEL_PATH,
             mlp_channel_div_factor=cfg.MODEL.MHR_HEAD.get("MLP_CHANNEL_DIV_FACTOR", 1),

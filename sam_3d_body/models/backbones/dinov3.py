@@ -14,12 +14,12 @@ class Dinov3Backbone(nn.Module):
 
         self.encoder = torch.hub.load(
             "facebookresearch/dinov3",
-            self.name,
+            self.name,      # 'dinov3_vith16plus'
             source="github",
             pretrained=False,
             drop_path=self.cfg.MODEL.BACKBONE.DROP_PATH_RATE,
         )
-        self.patch_size = self.encoder.patch_size
+        self.patch_size = self.encoder.patch_size       # 16
         self.embed_dim = self.embed_dims = self.encoder.embed_dim
 
     def forward(self, x, extra_embed=None):
@@ -34,7 +34,7 @@ class Dinov3Backbone(nn.Module):
 
         y = self.encoder.get_intermediate_layers(x, n=1, reshape=True, norm=True)[-1]
 
-        return y
+        return y        #(1,1280,32,32)
 
     def get_layer_depth(self, param_name: str, prefix: str = "encoder."):
         """Get the layer-wise depth of a parameter.

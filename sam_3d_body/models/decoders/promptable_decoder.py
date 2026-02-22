@@ -93,13 +93,13 @@ class PromptableDecoder(nn.Module):
 
     def forward(
         self,
-        token_embedding: torch.Tensor,
-        image_embedding: torch.Tensor,
-        token_augment: Optional[torch.Tensor] = None,
-        image_augment: Optional[torch.Tensor] = None,
-        token_mask: Optional[torch.Tensor] = None,
+        token_embedding: torch.Tensor,  # (1,145,1024)
+        image_embedding: torch.Tensor,  # (1.1280,32,32)
+        token_augment: Optional[torch.Tensor] = None,   # (1,145,1024)
+        image_augment: Optional[torch.Tensor] = None,   # (1.1280,32,32)
+        token_mask: Optional[torch.Tensor] = None,      # None
         channel_first: bool = True,
-        token_to_pose_output_fn=None,
+        token_to_pose_output_fn=None,       # mhr_head, MHRHead
         keypoint_token_update_fn=None,
         hand_embeddings=None,
         hand_augment=None,
@@ -109,7 +109,7 @@ class PromptableDecoder(nn.Module):
             token_embedding: [B, N, C]
             image_embedding: [B, C, H, W]
         """
-        if channel_first:
+        if channel_first:       # True
             image_embedding = image_embedding.flatten(2).permute(0, 2, 1)
             if image_augment is not None:
                 image_augment = image_augment.flatten(2).permute(0, 2, 1)
@@ -126,7 +126,7 @@ class PromptableDecoder(nn.Module):
             all_pose_outputs = []
 
         for layer_idx, layer in enumerate(self.layers):
-            if hand_embeddings is None:
+            if hand_embeddings is None:     # None
                 token_embedding, image_embedding = layer(
                     token_embedding,
                     image_embedding,

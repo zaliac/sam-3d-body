@@ -19,7 +19,7 @@ class Sam3DWithContact(nn.Module):
             p.requires_grad = False
 
         self.contact_head = ContactPredictionHead(
-            in_dim=256,      # SAM-3D-Body vertex feature dim
+            in_dim=256,      # TODO: SAM-3D-Body vertex feature dim
             hidden_dim=128
         )
 

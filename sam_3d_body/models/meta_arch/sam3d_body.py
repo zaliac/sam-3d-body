@@ -43,212 +43,6 @@ KEY_RIGHT_HAND = list(range(21, 42))
 class SAM3DBody(BaseModel):
     pelvis_idx = [9, 10]  # left_hip, right_hip
 
-    '''
-    def __init__(self, model_cfg):
-        super().__init__()
-
-        self._max_num_person = 1  # TODO  None->1
-        self._batch_size = 2
-
-        self.register_buffer(
-            "image_mean", torch.tensor(self.cfg.MODEL.IMAGE_MEAN).view(-1, 1, 1), False
-        )
-        self.register_buffer(
-            "image_std", torch.tensor(self.cfg.MODEL.IMAGE_STD).view(-1, 1, 1), False
-        )
-
-        # Create backbone feature extractor for human crops
-        self.backbone = create_backbone(self.cfg.MODEL.BACKBONE.TYPE, self.cfg)
-
-        # Create header for pose estimation output
-        self.head_pose = build_head(self.cfg, self.cfg.MODEL.PERSON_HEAD.POSE_TYPE)
-        self.head_pose.hand_pose_comps_ori = nn.Parameter(
-            self.head_pose.hand_pose_comps.clone(), requires_grad=False
-        )
-        self.head_pose.hand_pose_comps.data = (
-            torch.eye(54).to(self.head_pose.hand_pose_comps.data).float()
-        )
-
-        # Initialize pose token with learnable params
-        # Note: bias/initial value should be zero-pose in cont, not all-zeros
-        self.init_pose = nn.Embedding(1, self.head_pose.npose)
-
-        # Define header for hand pose estimation
-        self.head_pose_hand = build_head(
-            self.cfg, self.cfg.MODEL.PERSON_HEAD.POSE_TYPE, enable_hand_model=True
-        )
-        self.head_pose_hand.hand_pose_comps_ori = nn.Parameter(
-            self.head_pose_hand.hand_pose_comps.clone(), requires_grad=False
-        )
-        self.head_pose_hand.hand_pose_comps.data = (
-            torch.eye(54).to(self.head_pose_hand.hand_pose_comps.data).float()
-        )
-        self.init_pose_hand = nn.Embedding(1, self.head_pose_hand.npose)
-
-        self.head_camera = build_head(self.cfg, self.cfg.MODEL.PERSON_HEAD.CAMERA_TYPE)
-        self.init_camera = nn.Embedding(1, self.head_camera.ncam)
-        nn.init.zeros_(self.init_camera.weight)
-
-        self.head_camera_hand = build_head(
-            self.cfg,
-            self.cfg.MODEL.PERSON_HEAD.CAMERA_TYPE,
-            default_scale_factor=self.cfg.MODEL.CAMERA_HEAD.get(
-                "DEFAULT_SCALE_FACTOR_HAND", 1.0
-            ),
-        )
-        self.init_camera_hand = nn.Embedding(1, self.head_camera_hand.ncam)
-        nn.init.zeros_(self.init_camera_hand.weight)
-
-        self.camera_type = "perspective"
-
-        # Support conditioned information for decoder
-        cond_dim = 3
-        init_dim = self.head_pose.npose + self.head_camera.ncam + cond_dim
-        self.init_to_token_mhr = nn.Linear(init_dim, self.cfg.MODEL.DECODER.DIM)
-        self.prev_to_token_mhr = nn.Linear(
-            init_dim - cond_dim, self.cfg.MODEL.DECODER.DIM
-        )
-        self.init_to_token_mhr_hand = nn.Linear(init_dim, self.cfg.MODEL.DECODER.DIM)
-        self.prev_to_token_mhr_hand = nn.Linear(
-            init_dim - cond_dim, self.cfg.MODEL.DECODER.DIM
-        )
-
-        # Create prompt encoder
-        self.max_num_clicks = 0
-        if self.cfg.MODEL.PROMPT_ENCODER.ENABLE:
-            self.max_num_clicks = self.cfg.MODEL.PROMPT_ENCODER.MAX_NUM_CLICKS
-            self.prompt_keypoints = PROMPT_KEYPOINTS[
-                self.cfg.MODEL.PROMPT_ENCODER.PROMPT_KEYPOINTS
-            ]
-
-            self.prompt_encoder = PromptEncoder(
-                embed_dim=self.backbone.embed_dims,  # need to match backbone dims for PE
-                num_body_joints=len(set(self.prompt_keypoints.values())),
-                frozen=self.cfg.MODEL.PROMPT_ENCODER.get("frozen", False),
-                mask_embed_type=self.cfg.MODEL.PROMPT_ENCODER.get(
-                    "MASK_EMBED_TYPE", None
-                ),
-            )
-            self.prompt_to_token = nn.Linear(
-                self.backbone.embed_dims, self.cfg.MODEL.DECODER.DIM
-            )
-
-            self.keypoint_prompt_sampler = build_keypoint_sampler(
-                self.cfg.MODEL.PROMPT_ENCODER.get("KEYPOINT_SAMPLER", {}),
-                prompt_keypoints=self.prompt_keypoints,
-                keybody_idx=(
-                    KEY_BODY
-                    if not self.cfg.MODEL.PROMPT_ENCODER.get("SAMPLE_HAND", False)
-                    else KEY_RIGHT_HAND
-                ),
-            )
-            # To keep track of prompting history
-            self.prompt_hist = np.zeros(
-                (len(set(self.prompt_keypoints.values())) + 2, self.max_num_clicks),
-                dtype=np.float32,
-            )
-
-            if self.cfg.MODEL.DECODER.FROZEN:
-                for param in self.prompt_to_token.parameters():
-                    param.requires_grad = False
-
-        # Create promptable decoder
-        self.decoder = build_decoder(
-            self.cfg.MODEL.DECODER, context_dim=self.backbone.embed_dims
-        )
-        # shared config for the two decoders
-        self.decoder_hand = build_decoder(
-            self.cfg.MODEL.DECODER, context_dim=self.backbone.embed_dims
-        )
-        self.hand_pe_layer = PositionEmbeddingRandom(self.backbone.embed_dims // 2)
-
-        # Manually convert the torso of the model to fp16.
-        if self.cfg.TRAIN.USE_FP16:
-            self.convert_to_fp16()
-            if self.cfg.TRAIN.get("FP16_TYPE", "float16") == "float16":
-                self.backbone_dtype = torch.float16
-            else:
-                self.backbone_dtype = torch.bfloat16
-        else:
-            self.backbone_dtype = torch.float32
-
-        self.ray_cond_emb = CameraEncoder(
-            self.backbone.embed_dim,
-            self.backbone.patch_size,
-        )
-        self.ray_cond_emb_hand = CameraEncoder(
-            self.backbone.embed_dim,
-            self.backbone.patch_size,
-        )
-
-        self.keypoint_embedding_idxs = list(range(70))
-        self.keypoint_embedding = nn.Embedding(
-            len(self.keypoint_embedding_idxs), self.cfg.MODEL.DECODER.DIM
-        )
-        self.keypoint_embedding_idxs_hand = list(range(70))
-        self.keypoint_embedding_hand = nn.Embedding(
-            len(self.keypoint_embedding_idxs_hand), self.cfg.MODEL.DECODER.DIM
-        )
-
-        if self.cfg.MODEL.DECODER.get("DO_HAND_DETECT_TOKENS", False):
-            self.hand_box_embedding = nn.Embedding(
-                2, self.cfg.MODEL.DECODER.DIM
-            )  # for two hands
-            # decice if there is left or right hand inside the image
-            self.hand_cls_embed = nn.Linear(self.cfg.MODEL.DECODER.DIM, 2)
-            self.bbox_embed = MLP(
-                self.cfg.MODEL.DECODER.DIM, self.cfg.MODEL.DECODER.DIM, 4, 3
-            )
-
-        self.keypoint_posemb_linear = FFN(
-            embed_dims=2,
-            feedforward_channels=self.cfg.MODEL.DECODER.DIM,
-            output_dims=self.cfg.MODEL.DECODER.DIM,
-            num_fcs=2,
-            add_identity=False,
-        )
-        self.keypoint_posemb_linear_hand = FFN(
-            embed_dims=2,
-            feedforward_channels=self.cfg.MODEL.DECODER.DIM,
-            output_dims=self.cfg.MODEL.DECODER.DIM,
-            num_fcs=2,
-            add_identity=False,
-        )
-        self.keypoint_feat_linear = nn.Linear(
-            self.backbone.embed_dims, self.cfg.MODEL.DECODER.DIM
-        )
-        self.keypoint_feat_linear_hand = nn.Linear(
-            self.backbone.embed_dims, self.cfg.MODEL.DECODER.DIM
-        )
-
-        # Do all KPS
-        self.keypoint3d_embedding_idxs = list(range(70))
-        self.keypoint3d_embedding = nn.Embedding(
-            len(self.keypoint3d_embedding_idxs), self.cfg.MODEL.DECODER.DIM
-        )
-
-        # Assume always do full body for the hand decoder
-        self.keypoint3d_embedding_idxs_hand = list(range(70))
-        self.keypoint3d_embedding_hand = nn.Embedding(
-            len(self.keypoint3d_embedding_idxs_hand), self.cfg.MODEL.DECODER.DIM
-        )
-
-        self.keypoint3d_posemb_linear = FFN(
-            embed_dims=3,
-            feedforward_channels=self.cfg.MODEL.DECODER.DIM,
-            output_dims=self.cfg.MODEL.DECODER.DIM,
-            num_fcs=2,
-            add_identity=False,
-        )
-        self.keypoint3d_posemb_linear_hand = FFN(
-            embed_dims=3,
-            feedforward_channels=self.cfg.MODEL.DECODER.DIM,
-            output_dims=self.cfg.MODEL.DECODER.DIM,
-            num_fcs=2,
-            add_identity=False,
-        )
-    '''
-
     def _initialze_model(self):
         self.register_buffer(
             "image_mean", torch.tensor(self.cfg.MODEL.IMAGE_MEAN).view(-1, 1, 1), False
@@ -258,10 +52,10 @@ class SAM3DBody(BaseModel):
         )
 
         # Create backbone feature extractor for human crops
-        self.backbone = create_backbone(self.cfg.MODEL.BACKBONE.TYPE, self.cfg)
+        self.backbone = create_backbone(self.cfg.MODEL.BACKBONE.TYPE, self.cfg)         # dinov3_vith16plus: "facebookresearch/dinov3"
 
         # Create header for pose estimation output
-        self.head_pose = build_head(self.cfg, self.cfg.MODEL.PERSON_HEAD.POSE_TYPE)
+        self.head_pose = build_head(self.cfg, self.cfg.MODEL.PERSON_HEAD.POSE_TYPE)     # mhr_head.py MHRHead
         self.head_pose.hand_pose_comps_ori = nn.Parameter(
             self.head_pose.hand_pose_comps.clone(), requires_grad=False
         )
@@ -353,7 +147,7 @@ class SAM3DBody(BaseModel):
                     param.requires_grad = False
 
         # Create promptable decoder
-        self.decoder = build_decoder(
+        self.decoder = build_decoder(       # PromptableDecoder
             self.cfg.MODEL.DECODER, context_dim=self.backbone.embed_dims
         )       # PromptableDecoder
         # shared config for the two decoders
@@ -515,21 +309,21 @@ class SAM3DBody(BaseModel):
             condition_info: optional condition information that is concatenated with
                 the input tokens, shape (B, c)
         """
-        batch_size = image_embeddings.shape[0]
+        batch_size = image_embeddings.shape[0]      # (1,1280,32,32)
 
         # Initial estimation for residual prediction.
         if init_estimate is None:
-            init_pose = self.init_pose.weight.expand(batch_size, -1).unsqueeze(dim=1)
+            init_pose = self.init_pose.weight.expand(batch_size, -1).unsqueeze(dim=1)   #(1,1,519)
             if hasattr(self, "init_camera"):
                 init_camera = self.init_camera.weight.expand(batch_size, -1).unsqueeze(
                     dim=1
-                )
+                )   # (1,1,3)
 
             init_estimate = (
                 init_pose
                 if not hasattr(self, "init_camera")
                 else torch.cat([init_pose, init_camera], dim=-1)
-            )  # This is basically pose & camera translation at the end. B x 1 x (404 + 3)
+            )  # (1,1,522) This is basically pose & camera translation at the end. B x 1 x (404 + 3)
 
         if condition_info is not None:
             init_input = torch.cat(
@@ -539,7 +333,7 @@ class SAM3DBody(BaseModel):
             init_input = init_estimate
         token_embeddings = self.init_to_token_mhr(init_input).view(
             batch_size, 1, -1
-        )  # B x 1 x 1024 (linear layered)
+        )  # B x 1 x 1024 (linear layered)  (1,1,1024)
 
         num_pose_token = token_embeddings.shape[1]
         assert num_pose_token == 1
@@ -581,11 +375,11 @@ class SAM3DBody(BaseModel):
             # To start, keypoints is all [0, 0, -2]. The points get sent into self.pe_layer._pe_encoding,
             # the labels determine the embedding weight (special one for -2, -1, then each of joint.)
             prompt_embeddings, prompt_mask = self.prompt_encoder(
-                keypoints=keypoints
-            )  # B x 1 x 1280
+                keypoints=keypoints     # (1,1,3) tensor([[[ 0.,  0., -2.]]], device='cuda:0')
+            )  # B x 1 x 1280       prompt_embeddings: (1,1,1280), prompt_mask:(1,1)
             prompt_embeddings = self.prompt_to_token(
                 prompt_embeddings
-            )  # Linear layered: B x 1 x 1024
+            )  # Linear layered: B x 1 x 1024   (1,1,1280)
 
             # Concatenate pose tokens and prompt embeddings as decoder input
             token_embeddings = torch.cat(
@@ -642,7 +436,7 @@ class SAM3DBody(BaseModel):
                     torch.zeros_like(token_embeddings[:, token_augment.shape[1] :, :]),
                 ],
                 dim=1,
-            )  # B x 3 + 70 x 1024
+            )  # B x 3 + 70 x 1024      # (1,75,1024)
             if self.cfg.MODEL.DECODER.get("DO_KEYPOINT3D_TOKENS", False):
                 # Put in a token for each keypoint
                 kps3d_emb_start_idx = token_embeddings.shape[1]
@@ -674,8 +468,8 @@ class SAM3DBody(BaseModel):
             prev_pose = init_pose.view(batch_size, -1)      # Tensor(1,519)
             prev_camera = init_camera.view(batch_size, -1)  # Tensor(1,3)
 
-            # Get pose outputs
-            pose_output = self.head_pose(pose_token, prev_pose)
+            # Get pose outputs      # TODO add a layer to change mhr_head to smpl_head
+            pose_output = self.head_pose(pose_token, prev_pose)     # deal with the decoder result in promptable_decoder
             # Get Camera Translation
             if hasattr(self, "head_camera"):        # True
                 pred_cam = self.head_camera(pose_token, prev_camera)        # pose_token:(1,1024), prev_camera:(1,3) -> (1,3)
@@ -970,29 +764,29 @@ class SAM3DBody(BaseModel):
         return keypoint_prompt
 
     def _get_mask_prompt(self, batch, image_embeddings):
-        x_mask = self._flatten_person(batch["mask"])
+        x_mask = self._flatten_person(batch["mask"])        # (1,1,512,512)
         mask_embeddings, no_mask_embeddings = self.prompt_encoder.get_mask_embeddings(
             x_mask, image_embeddings.shape[0], image_embeddings.shape[2:]
-        )
-        if self.cfg.MODEL.BACKBONE.TYPE in [
+        )       # mask_embeddings:(1,1280,32,32), no_mask_embeddings:(1,1280,32,32)
+        if self.cfg.MODEL.BACKBONE.TYPE in [        # no
             "vit_hmr",
             "vit",
         ]:
             # ViT backbone assumes a different aspect ratio as input size
             mask_embeddings = mask_embeddings[:, :, :, 2:-2]
-        elif self.cfg.MODEL.BACKBONE.TYPE in [
+        elif self.cfg.MODEL.BACKBONE.TYPE in [      # no
             "vit_hmr_512_384",
         ]:
             # for x2 resolution
             mask_embeddings = mask_embeddings[:, :, :, 4:-4]
 
-        mask_score = self._flatten_person(batch["mask_score"]).view(-1, 1, 1, 1)    # tensor([[[[0.]]]], device='cuda:0')
+        mask_score = self._flatten_person(batch["mask_score"]).view(-1, 1, 1, 1)    # tensor([[[[0.]]]], device='cuda:0') (1,1,1,1)
         mask_embeddings = torch.where(
             mask_score > 0,
             mask_score * mask_embeddings.to(image_embeddings),
             no_mask_embeddings.to(image_embeddings),
         )
-        return mask_embeddings
+        return mask_embeddings      # (1,1280,32,32)
 
     def _one_prompt_iter(self, batch, output, prev_prompt, full_output):
         image_embeddings = output["image_embeddings"]
@@ -1296,24 +1090,24 @@ class SAM3DBody(BaseModel):
 
         if len(self.body_batch_idx):
             batch["ray_cond"] = ray_cond[self.body_batch_idx].clone()
-        if len(self.hand_batch_idx):
+        if len(self.hand_batch_idx):        # pass
             batch["ray_cond_hand"] = ray_cond[self.hand_batch_idx].clone()
         ray_cond = None
 
         image_embeddings = self.backbone(
             x.type(self.backbone_dtype), extra_embed=ray_cond
-        )  # (B, C, H, W)
+        )  # (B, C, H, W)   Tensor(1,1280,32,32)
 
-        if isinstance(image_embeddings, tuple):
+        if isinstance(image_embeddings, tuple):     # pass
             image_embeddings = image_embeddings[-1]
-        image_embeddings = image_embeddings.type(x.dtype)
+        image_embeddings = image_embeddings.type(x.dtype)   # dtype = torch.float32
 
         # Mask condition if available
         if self.cfg.MODEL.PROMPT_ENCODER.get("MASK_EMBED_TYPE", None) is not None:
             # v1: non-iterative mask conditioning
             if self.cfg.MODEL.PROMPT_ENCODER.get("MASK_PROMPT", "v1") == "v1":
-                mask_embeddings = self._get_mask_prompt(batch, image_embeddings)
-                image_embeddings = image_embeddings + mask_embeddings
+                mask_embeddings = self._get_mask_prompt(batch, image_embeddings)    # here, add prompt
+                image_embeddings = image_embeddings + mask_embeddings       # add mask, mask_embeddings: 0
             else:
                 raise NotImplementedError
 
@@ -1387,7 +1181,7 @@ class SAM3DBody(BaseModel):
         batch_size, num_person = batch["img"].shape[:2]    # Tensor: (2,3,512,512)
         self._batch_size = batch_size       # TODO
 
-        if decoder_type == "body":
+        if decoder_type == "body":      # here
             self.hand_batch_idx = []
             self.body_batch_idx = list(range(batch_size * num_person))
         elif decoder_type == "hand":

@@ -74,6 +74,9 @@ class MHRHead(nn.Module):
             add_identity=False,
         )
 
+        # TODO: add smpl layer
+
+
         if ffn_zero_bias:
             torch.nn.init.zeros_(self.proj.layers[-2].bias)
 
@@ -283,7 +286,7 @@ class MHRHead(nn.Module):
             init_estimate: [B, self.npose]
         """
         batch_size = x.shape[0]
-        pred = self.proj(x)     # x: (1,1024), pred=(1,519) -> 173 (joints) * 3
+        pred = self.proj(x)     # step 1  x: (1,1024), pred=(1,519) -> 173 (joints) * 3
         if init_estimate is not None:
             pred = pred + init_estimate     # pred:(1,519), init_estimate:(1,519) -> (1,519)
 
@@ -319,7 +322,7 @@ class MHRHead(nn.Module):
         count += self.num_face_comps        # num_face_comps=72
 
         # Run everything through mhr
-        output = self.mhr_forward(
+        output = self.mhr_forward(  # step 2
             global_trans=global_trans,
             global_rot=global_rot_euler,
             body_pose_params=pred_pose_euler,
@@ -335,7 +338,7 @@ class MHRHead(nn.Module):
         )
 
         # Some existing code to get joints and fix camera system
-        verts, j3d, jcoords, mhr_model_params, joint_global_rots = output
+        verts, j3d, jcoords, mhr_model_params, joint_global_rots = output       # (1,8439,3), (1,308,3),(1,127,3),(1,204),(1,27,3,3)
         j3d = j3d[:, :70]  # 308 --> 70 keypoints       # (1,308,3) -> (1,70,3)
 
         if verts is not None:       # True
