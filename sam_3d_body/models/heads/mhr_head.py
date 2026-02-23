@@ -18,6 +18,8 @@ from ..modules.mhr_utils import (
 
 from ..modules.transformer import FFN
 
+# import MHRToSMPLLayer
+
 # MOMENTUM_ENABLED = os.environ.get("MOMENTUM_ENABLED") is None
 MOMENTUM_ENABLED = False        # TODO
 try:
@@ -74,9 +76,6 @@ class MHRHead(nn.Module):
             add_identity=False,
         )
 
-        # TODO: add smpl layer
-
-
         if ffn_zero_bias:
             torch.nn.init.zeros_(self.proj.layers[-2].bias)
 
@@ -123,6 +122,11 @@ class MHRHead(nn.Module):
 
         for param in self.mhr.parameters():
             param.requires_grad = False
+
+        # TODO: 1 Initialize the MHR to SMPL transformation layer
+        # self.mhr_to_smpl = MHRToSMPLLayer()
+        self.pose_transform = nn.Linear(133, 72)  # Example: Mapping MHR pose to SMPL pose (adjust dimensions if necessary)
+        self.shape_transform = nn.Linear(45, 10)
 
     def get_zero_pose_init(self, factor=1.0):
         # Initialize pose token with zero-initialized learnable params
@@ -232,6 +236,7 @@ class MHRHead(nn.Module):
         curr_skinned_verts, curr_skel_state = self.mhr(
             shape_params, model_params, expr_params
         )       # shape_params:(1,45), model_params:(1,204), expr_params:(1,72)=[[0,...]] -> curr_skinned_verts:(1,18439,3), curr_skel_state:(1,127,8)
+
         curr_joint_coords, curr_joint_quats, _ = torch.split(
             curr_skel_state, [3, 4, 1], dim=2
         )   # curr_joint_coords:(1,127,3), curr_joint_quats:(1,127,4),
@@ -370,5 +375,18 @@ class MHRHead(nn.Module):
             "joint_global_rots": joint_global_rots,     # (1,127,3,3)
             "mhr_model_params": mhr_model_params,       # (1,204)
         }
+
+
+        # TODO: 2 After computing MHR output (verts, j3d, jcoords, etc.)
+        # smpl_pose, smpl_shape = self.mhr_to_smpl(pred_pose_euler, pred_shape)
+        # Transform the pose (MHR -> SMPL)
+        smpl_pose = self.pose_transform(pred_pose_euler)        #  pred_pose_euler(1:133) -> smpl_pose(1,72)
+
+        # Transform the shape (MHR -> SMPL)
+        smpl_shape = self.shape_transform(pred_shape)           #  pred_shape(1,45) -> smpl_shape(1,10)
+
+        # Add SMPL pose and shape to the output
+        output["smpl_pose"] = smpl_pose     # TODO: change name to pred_smpl_pose / pred_smpl_shape
+        output["smpl_shape"] = smpl_shape
 
         return output

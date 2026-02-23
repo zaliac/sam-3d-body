@@ -3,7 +3,8 @@ import torch.nn as nn
 # from sam3d_body.models import build_model
 # from models.contact_head import ContactPredictionHead
 from sam_3d_body.build_models import load_sam_3d_body
-from contact_head import ContactPredictionHead
+# from contact_head import ContactPredictionHead
+from contact_head_linear import ContactHead
 
 class Sam3DWithContact(nn.Module):
     def __init__(self, checkpoint_path):
@@ -18,20 +19,17 @@ class Sam3DWithContact(nn.Module):
         for p in self.sam3d.backbone.parameters():
             p.requires_grad = False
 
-        self.contact_head = ContactPredictionHead(
-            in_dim=256,      # TODO: SAM-3D-Body vertex feature dim
-            hidden_dim=128
-        )
+        self.contact_head = ContactHead()       # TODO: use a simple linear head firstly.
 
     def forward(self, batch):
         out = self.sam3d(batch)
 
-        vertex_features = out["vertex_features"]  # (B,V,256)
-        contact = self.contact_head(vertex_features)
+        # vertex_features = out["vertex_features"]  # (B,V,256)
+        # contact = self.contact_head(vertex_features)
+        image_embeddings = out["image_embeddings"]      # (batch_size,1280,32,32)
+        contact_probs = self.contact_head(image_embeddings)
+
+        out["contact_probs"] = contact_probs
         # TODO:
-        out_mhr = out["mhr"]
-        return {
-            "vertices": out["vertices"],
-            "contact_logits": contact["logits"],
-            "contact_probs": contact["probs"]
-        }
+        # out_mhr = out["mhr"]
+        return out
