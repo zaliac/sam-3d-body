@@ -12,6 +12,7 @@ from sam3d_damon import Sam3DWithContact
 from damon_loss import contact_loss, mesh_loss
 import numpy as np
 from sam_3d_body.utils import recursive_to
+from torch.utils.tensorboard import SummaryWriter
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -32,7 +33,10 @@ criterion_contact = nn.BCELoss()
 criterion_pose = torch.nn.MSELoss()
 criterion_shape = torch.nn.MSELoss()
 
-for epoch in range(1):
+writer = SummaryWriter("logs/train")
+global_step = 0
+
+for epoch in range(16):
     model.train()
     # total = 0
 
@@ -50,15 +54,12 @@ for epoch in range(1):
                 gt_pose = b["pose"]
                 gt_shape = b["shape"]
 
-                # batch['img']=batch['img'].unsqueeze(1)
-
                 out = model(batch)
 
                 # loss = (
                 #     contact_loss(out["contact"], gt_c)
                 #     + 0.05 * mesh_loss(out["verts"], gt_v)
                 # )
-                # loss = contact_loss(out["contact_logits"], gt_c)       #    contact
                 contact_probs = out["contact_probs"]
                 loss_contact = criterion_contact(contact_probs, gt_c)   # (0.6930)     # contact_probs shape: (1,6890),gt_c shape:(1,6890)
 
@@ -80,12 +81,20 @@ for epoch in range(1):
                 loss.backward()
                 optimizer.step()
 
-                # total += loss.item()
-                if(i%50 ==0):
-                    print(f"[Epoch {epoch} i {i}] Loss: {loss:.4f}")
+                # ================= TensorBoard =================
+                writer.add_scalars(
+                    "Loss",
+                    {
+                        "total": loss.item(),
+                        "contact": loss_contact.item(),
+                        "pose": loss_pose.item(),
+                        "shape": loss_shape.item(),
+                    },
+                    global_step
+                )
+
+                global_step += 1
         except Exception:
             print(f"error: [Epoch: {epoch} i: {i}]")
-
-    # print(f"[Epoch {epoch}] Loss: {total:.4f}")
-    torch.save(model.state_dict(), f"sam3d_damon_{epoch}.pth")
-# torch.save(model.state_dict(), f"sam3d_damon.pth")
+    # torch.save(model.state_dict(), f"sam3d_damon_{epoch}.pth")
+torch.save(model.state_dict(), f"sam3d_damon_16.pth")
