@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 # from datasets.damon_dataset import DamonDataset
 # from models.sam3d_damon import Sam3DDamon
 # from losses.damon_loss import contact_loss, mesh_loss
+import traceback
 
 from damon_dataset import DamonDataset
 # from sam3d_damon_old import Sam3DDamon
@@ -92,7 +93,9 @@ for epoch in range(16):
                 )
 
                 global_step += 1
-        except Exception:
+        except Exception as e:
             print(f"error: [Epoch: {epoch} i: {i}]")
+            print(e)
+            traceback.print_exc()
     # torch.save(model.state_dict(), f"sam3d_damon_{epoch}.pth")
 torch.save(model.state_dict(), f"sam3d_damon_16.pth")
