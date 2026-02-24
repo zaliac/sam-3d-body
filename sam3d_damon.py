@@ -4,7 +4,7 @@ import torch.nn as nn
 # from models.contact_head import ContactPredictionHead
 from sam_3d_body.build_models import load_sam_3d_body
 # from contact_head import ContactPredictionHead
-from contact_head_linear import ContactHead
+from contact_head_linear2 import ContactHead
 
 class Sam3DWithContact(nn.Module):
     def __init__(self, checkpoint_path):

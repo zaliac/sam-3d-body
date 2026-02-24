@@ -38,8 +38,6 @@ global_step = 0
 
 for epoch in range(16):
     model.train()
-    # total = 0
-
     for b in loader:
         # TODO: load batch by b["id"], then put to cuda
         i = b["id"].item()   # 0
