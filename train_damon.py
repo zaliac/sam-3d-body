@@ -25,7 +25,7 @@ optimizer = torch.optim.AdamW(
     lr=2e-5
 )
 
-TRAIN_SAMPLES = torch.load('samples_smpl.pth')
+TRAIN_SAMPLES = torch.load('samples_smpl_cam.pth')
 dataset = DamonDataset(TRAIN_SAMPLES)
 loader = DataLoader(dataset, batch_size=1)
 output_folder = "./datasets/damon"
@@ -39,21 +39,21 @@ global_step = 0
 
 for epoch in range(16):
     model.train()
-    for b in loader:
+    for label in loader:
         # TODO: load batch by b["id"], then put to cuda
-        i = b["id"].item()   # 0
+        i = label["id"].item()   # 0
 
         try:
             batch = torch.load(f"{output_folder}/batch_{i}.pt", map_location="cpu", weights_only=False)
             if batch:
-                b = recursive_to(b, "cuda")
+                label = recursive_to(label, "cuda")
                 batch = recursive_to(batch, "cuda")
 
-                gt_c = b["contact"].float()
-                gt_pose = b["pose"]
-                gt_shape = b["shape"]
+                gt_c = label["contact"].float()
+                gt_pose = label["pose"]
+                gt_shape = label["shape"]
 
-                out = model(batch)
+                out = model(batch, label)
 
                 # loss = (
                 #     contact_loss(out["contact"], gt_c)
