@@ -1,7 +1,7 @@
 import torch
 import smplx
 
-def smpl_to_uv_batch(pose, shape, K, H_img, W_img, smpl_model_path, gender="neutral", device="cuda"):
+def smpl_to_uv_batch(pose, shape, K, H_img, W_img, smpl_model_path, gender="neutral", device="cpu"):
     """
     Batch 版 SMPL -> verts_uv 生成函数
 
@@ -19,7 +19,7 @@ def smpl_to_uv_batch(pose, shape, K, H_img, W_img, smpl_model_path, gender="neut
     """
     B = pose.shape[0]
 
-    # 1️⃣ 初始化 SMPL 模型
+    # 1 init the smpl model
     smpl_model = smplx.create(
         model_path=smpl_model_path,
         model_type="smpl",
@@ -27,7 +27,7 @@ def smpl_to_uv_batch(pose, shape, K, H_img, W_img, smpl_model_path, gender="neut
         batch_size=B
     ).to(device)
 
-    # 2️⃣ SMPL forward
+    # 2 SMPL forward
     output = smpl_model(
         betas=shape.to(device),
         body_pose=pose[:,3:].to(device),
@@ -36,7 +36,7 @@ def smpl_to_uv_batch(pose, shape, K, H_img, W_img, smpl_model_path, gender="neut
     )
     verts_3d = output.vertices  # (B,6890,3)
 
-    # 3️⃣ 透视投影到像素坐标
+    # 3 project to pixel coordination
     X = verts_3d[...,0]
     Y = verts_3d[...,1]
     Z = verts_3d[...,2].clamp(min=1e-6)
@@ -51,7 +51,7 @@ def smpl_to_uv_batch(pose, shape, K, H_img, W_img, smpl_model_path, gender="neut
 
     uv_pixels = torch.stack([u,v], dim=-1)  # (B,6890,2)
 
-    # 4️⃣ 归一化到 [-1,1]，供 grid_sample 使用
+    # 4 normalize to [-1,1]，for grid_sample
     u_norm = 2 * (uv_pixels[...,0] / (W_img - 1)) - 1
     v_norm = 2 * (uv_pixels[...,1] / (H_img - 1)) - 1
     verts_uv = torch.stack([u_norm, v_norm], dim=-1)

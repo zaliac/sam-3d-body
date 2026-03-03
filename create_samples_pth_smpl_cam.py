@@ -51,7 +51,7 @@ def build_samples(imgnames: np.ndarray, labels: np.ndarray, poses: np.ndarray, s
             shape_list = shape
 
         # TODO: add cam(shape: (batch size, 3,3))
-        cam = cams[i]          # (3,3)
+        cam = cams[i]          # (3,3):[[800.0, 0.0, 320.0], [0.0, 800.0, 240.0], [0.0, 0.0, 1.0]]
         try:
             cam_list = cam.tolist()
         except Exception:

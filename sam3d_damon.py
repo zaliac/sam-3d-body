@@ -35,17 +35,18 @@ class Sam3DWithContact(nn.Module):
         gt_pose = label["pose"]
         gt_shape = label["shape"]
         gt_cam = label["cam"]
+        verts_uv = label["verts_uv"]
 
-        verts_uv = smpl_to_uv_batch(
-            pose=gt_pose,  # (B,72)
-            shape=gt_shape,  # (B,10)
-            K=gt_cam,  # (B,3,3)
-            H_img=32,        # H_img
-            W_img=32,         # W_img
-            smpl_model_path="./data/smpl/SMPL_NEUTRAL.pkl",
-            gender="neutral",
-            device="cuda"
-        )
+        # verts_uv = smpl_to_uv_batch(
+        #     pose=gt_pose,  # (B,72)
+        #     shape=gt_shape,  # (B,10)
+        #     K=gt_cam,  # (B,3,3)
+        #     H_img=32,        # H_img
+        #     W_img=32,         # W_img
+        #     smpl_model_path="./data/smpl/SMPL_NEUTRAL.pkl",
+        #     gender="neutral",
+        #     device="cuda"
+        # )
         contact_probs = self.contact_head(image_embeddings,verts_uv)
 
         out["contact_probs"] = contact_probs
