@@ -46,7 +46,7 @@ def build_samples(imgnames: np.ndarray, labels: np.ndarray) -> List[dict]:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset-dir", default="dataset", help="Path to dataset directory")
+    parser.add_argument("--dataset-dir", default="datasets", help="Path to dataset directory")
     parser.add_argument("--imgname", default=None, help="Path to imgname.npy (overrides dataset-dir)")
     parser.add_argument("--labels", default=None, help="Path to contact_label.npy/contact_label_smplx.npy (overrides dataset-dir)")
     parser.add_argument("--out", default=None, help="Output path for samples.pth")

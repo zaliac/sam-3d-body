@@ -19,6 +19,7 @@ class DamonDataset(Dataset):
         #     transforms.Resize((img_size, img_size)),
         #     transforms.ToTensor()
         # ])
+        # self.vertices = np.load("./datasets/smpl_standard_vertices.npy", allow_pickle=True)
 
     def __len__(self):
         return len(self.samples)
@@ -44,5 +45,6 @@ class DamonDataset(Dataset):
             # TODO: add pose, shape
             "pose":s["pose"],           # (4384, 72)
             "shape":s["shape"],         # (4384, 10)
-            "contact": torch.tensor(s['vertices']).long()     # "contact_labels"
+            "contact": torch.tensor(s['vertices']).long(),     # "contact_labels"
+            "verts_uv":torch.tensor(s['verts_uv'])
         }

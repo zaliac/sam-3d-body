@@ -47,16 +47,16 @@ class ContactHead(nn.Module):
         N = verts_uv.shape[1]
 
         # grid_sample need (B, N, 1, 2)
-        grid = verts_uv.unsqueeze(2)
+        grid = verts_uv.unsqueeze(2)        # (1,6890,1,2)
 
         sampled = F.grid_sample(
             feat_map,
             grid,
             mode="bilinear",
             align_corners=True
-        )  # (B, C, N, 1)
+        )  # (B, C, N, 1)   (1, 1280, 6890, 1)
 
-        sampled = sampled.squeeze(-1).permute(0, 2, 1)  # (B, N, C)
+        sampled = sampled.squeeze(-1).permute(0, 2, 1)  # (B, N, C) (1,6890,1280)
         return sampled
 
     def graph_smoothing(self, v_feat, adjacency):
@@ -76,11 +76,11 @@ class ContactHead(nn.Module):
     def forward(self, feat_map, verts_uv, adjacency=None):
 
         # 1
-        v_feat = self.sample_vertex_features(feat_map, verts_uv)
+        v_feat = self.sample_vertex_features(feat_map, verts_uv)    # (1,6890,1280)
         # (B, 6890, 1280)
 
         # 2
-        v_feat = self.reduce(v_feat)
+        v_feat = self.reduce(v_feat)    # (1,6890,256)
         # (B, 6890, hidden_dim)
 
         # 3
@@ -88,7 +88,7 @@ class ContactHead(nn.Module):
             v_feat = self.graph_smoothing(v_feat, adjacency)
 
         # 4
-        logits = self.classifier(v_feat).squeeze(-1)
+        logits = self.classifier(v_feat).squeeze(-1)    # (1, 6890)
         prob = torch.sigmoid(logits)
 
         return prob

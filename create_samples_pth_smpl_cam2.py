@@ -42,7 +42,7 @@ class SMPL:
         # Here we just return v_shaped as vertices
         return v_shaped
 
-def smpl_to_uv_single(pose: np.ndarray, shape: np.ndarray, cam: np.ndarray, H_img: int=32, W_img: int=32) -> np.ndarray:
+def smpl_to_uv_single(pose: np.ndarray, shape: np.ndarray, cam: np.ndarray, smpl_model, H_img: int=32, W_img: int=32, batchsize: int=1) -> np.ndarray:
     """
     用 SMPL + 相机内参生成 verts_uv
     Args:
@@ -54,25 +54,29 @@ def smpl_to_uv_single(pose: np.ndarray, shape: np.ndarray, cam: np.ndarray, H_im
     Returns:
         verts_uv: (6890,2) ∈ [-1,1]
     """
-    pose_t = torch.tensor(pose, dtype=torch.float32).unsqueeze(0)   # (1,72)
-    shape_t = torch.tensor(shape, dtype=torch.float32).unsqueeze(0) # (1,10)
+    # pose_t = torch.tensor(pose, dtype=torch.float32).unsqueeze(0)   # (1,72)
+    # shape_t = torch.tensor(shape, dtype=torch.float32).unsqueeze(0) # (1,10)
     cam_t = torch.tensor(cam, dtype=torch.float32).unsqueeze(0)     # (1,3,3)
 
-    # output = smpl_model(
-    #     betas=shape_t,
-    #     body_pose=pose_t[:,3:],
-    #     global_orient=pose_t[:,:3],
-    #     return_verts=True
-    # )
+    pose_t = torch.zeros(batchsize, 72).float()
+    shape_t = torch.zeros(batchsize, 10).float()
 
-    smpl_model = SMPL("./data/models/smpl/SMPL_NEUTRAL.npz")
+    # smpl_model = SMPL("./data/models/smpl/SMPL_NEUTRAL.npz")
 
     # inside loop
-    verts_3d = smpl_model.forward(
-        betas=torch.tensor(shape_t, dtype=torch.float32),
-        pose=torch.tensor(pose_t, dtype=torch.float32)
+    # verts_3d = smpl_model.forward(
+    #     betas=torch.tensor(shape_t, dtype=torch.float32),
+    #     pose=torch.tensor(pose_t, dtype=torch.float32)
+    # )
+
+    output = smpl_model(
+        betas=shape_t,
+        body_pose=pose_t[:,3:],
+        global_orient=pose_t[:,:3],
+        return_verts=True
     )
-    # verts_3d = output.vertices  # (1,6890,3)
+
+    verts_3d = output.vertices  # (1,6890,3)
 
     X = verts_3d[...,0]
     Y = verts_3d[...,1]
@@ -92,8 +96,9 @@ def smpl_to_uv_single(pose: np.ndarray, shape: np.ndarray, cam: np.ndarray, H_im
     u_norm = 2 * (uv_pixels[...,0] / (W_img - 1)) - 1
     v_norm = 2 * (uv_pixels[...,1] / (H_img - 1)) - 1
     verts_uv = torch.stack([u_norm, v_norm], dim=-1).squeeze(0) # (6890,2)
+    ret = verts_uv.detach().cpu().numpy()
 
-    return verts_uv.cpu().numpy()
+    return ret
 
 
 def build_samples(imgnames: np.ndarray, labels: np.ndarray, poses: np.ndarray, shapes: np.ndarray, cams: np.ndarray) -> List[dict]:
@@ -112,15 +117,14 @@ def build_samples(imgnames: np.ndarray, labels: np.ndarray, poses: np.ndarray, s
     #     use_pca=False,
     #     batch_size=1
     # )
-    # smpl_model = smplx.create(
-    #     model_path="./data/models",  # directory containing `smpl/SMPL_NEUTRAL.npz`
-    #     model_type="smpl",
-    #     gender="neutral",
-    #     ext="npz",  # key: tells smplx to load npz instead of pkl
-    #     use_pca=False,
-    #     batch_size=1
-    # )
-
+    smpl_model = smplx.create(
+        model_path="./data/models",  # directory containing `smpl/SMPL_NEUTRAL.npz`
+        model_type="smpl",
+        gender="neutral",
+        ext="npz",  # key: tells smplx to load npz instead of pkl
+        use_pca=False,
+        batch_size=1
+    )
 
     for i in range(B):
         # imgname
@@ -159,7 +163,7 @@ def build_samples(imgnames: np.ndarray, labels: np.ndarray, poses: np.ndarray, s
             cam_list = cam_i
 
         # verts_uv
-        verts_uv_i = smpl_to_uv_single(pose_i, shape_i, cam_i, 32, 32)
+        verts_uv_i = smpl_to_uv_single(pose_i, shape_i, cam_i, smpl_model,32, 32)   # pose_i, shape_i  change to standard smpl.
         try:
             verts_uv_list = verts_uv_i.tolist()
         except Exception:
@@ -191,7 +195,7 @@ def main():
     poses_path = os.path.join(dataset_dir, "pose.npy")
     shapes_path = os.path.join(dataset_dir, "shape.npy")
     cams_path = os.path.join(dataset_dir, "cam_k.npy")
-    out_path = args.out or os.path.join(dataset_dir, "samples_smpl_cam2.pth")      # TODO: samples.pth
+    out_path = args.out or os.path.join(dataset_dir, "samples_smpl_cam_standard.pth")      # TODO: samples.pth
 
     imgnames = load_npy(imgname_path)       # (4380,)
     labels = load_npy(labels_path)          # (4380,6890)

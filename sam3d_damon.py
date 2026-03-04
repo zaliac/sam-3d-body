@@ -31,11 +31,11 @@ class Sam3DWithContact(nn.Module):
         # vertex_features = out["vertex_features"]  # (B,V,256)
         # contact = self.contact_head(vertex_features)
         image_embeddings = out["image_embeddings"]      # (batch_size,1280,32,32)
-        verts_uv = torch.ones(1, 6890, 2)   # TODO:add uv position
-        gt_pose = label["pose"]
-        gt_shape = label["shape"]
-        gt_cam = label["cam"]
-        verts_uv = label["verts_uv"]
+        # verts_uv = torch.ones(1, 6890, 2)   # TODO:add uv position
+        # gt_pose = label["pose"]
+        # gt_shape = label["shape"]
+        # gt_cam = label["cam"]
+        verts_uv = label["verts_uv"]    # (1,6890,2)
 
         # verts_uv = smpl_to_uv_batch(
         #     pose=gt_pose,  # (B,72)

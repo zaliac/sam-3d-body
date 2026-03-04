@@ -25,7 +25,7 @@ optimizer = torch.optim.AdamW(
     lr=2e-5
 )
 
-TRAIN_SAMPLES = torch.load('samples_smpl_cam.pth')
+TRAIN_SAMPLES = torch.load('samples_smpl_cam_standard.pth')
 dataset = DamonDataset(TRAIN_SAMPLES)
 loader = DataLoader(dataset, batch_size=1)
 output_folder = "./datasets/damon"
@@ -37,7 +37,7 @@ criterion_shape = torch.nn.MSELoss()
 writer = SummaryWriter("logs/train")
 global_step = 0
 
-for epoch in range(16):
+for epoch in range(6):
     model.train()
     for label in loader:
         # TODO: load batch by b["id"], then put to cuda
@@ -95,7 +95,7 @@ for epoch in range(16):
                 global_step += 1
         except Exception as e:
             print(f"error: [Epoch: {epoch} i: {i}]")
-            print(e)
-            traceback.print_exc()
+            # print(e)
+            # traceback.print_exc()
     # torch.save(model.state_dict(), f"sam3d_damon_{epoch}.pth")
-torch.save(model.state_dict(), f"sam3d_damon_16.pth")
+torch.save(model.state_dict(), f"sam3d_damon_6.pth")
