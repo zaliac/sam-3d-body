@@ -25,6 +25,11 @@ optimizer = torch.optim.AdamW(
     lr=2e-5
 )
 
+ckpt = torch.load("sam3d_damon_6.pth", map_location=device)
+model.load_state_dict(ckpt, strict=False)    # model.load_state_dict(torch.load(ckpt_path, map_location=device), strict=False), model.load_state_dict(ckpt["model"], strict=False)
+# optimizer.load_state_dict(ckpt["optimizer"])
+# start_epoch = ckpt["epoch"] + 1
+
 TRAIN_SAMPLES = torch.load('samples_smpl_cam_standard.pth')
 dataset = DamonDataset(TRAIN_SAMPLES)
 loader = DataLoader(dataset, batch_size=1)
@@ -59,7 +64,9 @@ for epoch in range(6):
                 #     contact_loss(out["contact"], gt_c)
                 #     + 0.05 * mesh_loss(out["verts"], gt_v)
                 # )
-                contact_probs = out["contact_probs"]
+                contact_probs = out["contact_probs"]        # (1,6890)
+                if(i==0):
+                    np.save(f"contact_{0}.npy", contact_probs.detach().cpu().numpy())
                 loss_contact = criterion_contact(contact_probs, gt_c)   # (0.6930)     # contact_probs shape: (1,6890),gt_c shape:(1,6890)
 
                 mhr = out["mhr"]
