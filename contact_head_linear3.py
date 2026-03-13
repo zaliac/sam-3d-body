@@ -20,7 +20,7 @@ class ContactHead(nn.Module):
         self,
         in_channels=1280,
         hidden_dim=256,
-        use_graph_smoothing=True
+        use_graph_smoothing=False
     ):
         super().__init__()
 
@@ -31,7 +31,7 @@ class ContactHead(nn.Module):
 
         # MLP head
         self.classifier = nn.Sequential(
-            nn.ReLU(),
+            # nn.LayerNorm(hidden_dim),      # nn.ReLU(),
             nn.Linear(hidden_dim, 128),
             nn.ReLU(),
             nn.Linear(128, 1)
@@ -47,16 +47,16 @@ class ContactHead(nn.Module):
         N = verts_uv.shape[1]
 
         # grid_sample need (B, N, 1, 2)
-        grid = verts_uv.unsqueeze(2)        # (1,6890,1,2)
+        grid = verts_uv.unsqueeze(2)        # (1,6890,2) -> (1,6890,1,2): (B, H_out, W_out, 2)
 
         sampled = F.grid_sample(
             feat_map,
             grid,
             mode="bilinear",
             align_corners=True
-        )  # (B, C, N, 1)   (1, 1280, 6890, 1)
+        )  # (B, C, N, 1)   (1, 1280, 6890, 1) bilinear interpolation: 在每个顶点投影位置采样 feature map. input: (B,1280,32,32), output: (B,1280,6890,1)
 
-        sampled = sampled.squeeze(-1).permute(0, 2, 1)  # (B, N, C) (1,6890,1280)
+        sampled = sampled.squeeze(-1).permute(0, 2, 1)  # (B, N, C) (1,6890,1280) vertex features.
         return sampled
 
     def graph_smoothing(self, v_feat, adjacency):
@@ -71,7 +71,7 @@ class ContactHead(nn.Module):
 
         # matrix
         v_feat = torch.matmul(A_norm, v_feat)
-        return v_feat
+        return v_feat       # a simple implementation of Graph Convolution
 
     def forward(self, feat_map, verts_uv, adjacency=None):
 
@@ -80,7 +80,7 @@ class ContactHead(nn.Module):
         # (B, 6890, 1280)
 
         # 2
-        v_feat = self.reduce(v_feat)    # (1,6890,256)
+        v_feat = self.reduce(v_feat)    # (1,6890,1280) -> (1,6890,256)
         # (B, 6890, hidden_dim)
 
         # 3
@@ -89,6 +89,6 @@ class ContactHead(nn.Module):
 
         # 4
         logits = self.classifier(v_feat).squeeze(-1)    # (1, 6890)
-        prob = torch.sigmoid(logits)
+        prob = torch.sigmoid(logits)    # 0 ~ 1
 
         return prob

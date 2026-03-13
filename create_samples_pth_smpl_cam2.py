@@ -42,32 +42,11 @@ class SMPL:
         # Here we just return v_shaped as vertices
         return v_shaped
 
-def smpl_to_uv_single(pose: np.ndarray, shape: np.ndarray, cam: np.ndarray, smpl_model, H_img: int=32, W_img: int=32, batchsize: int=1) -> np.ndarray:
-    """
-    用 SMPL + 相机内参生成 verts_uv
-    Args:
-        pose: (72,)
-        shape: (10,)
-        cam: (3,3)
-        H_img, W_img: 图像尺寸
-        smpl_model: 已加载的 SMPL 模型
-    Returns:
-        verts_uv: (6890,2) ∈ [-1,1]
-    """
-    # pose_t = torch.tensor(pose, dtype=torch.float32).unsqueeze(0)   # (1,72)
-    # shape_t = torch.tensor(shape, dtype=torch.float32).unsqueeze(0) # (1,10)
-    cam_t = torch.tensor(cam, dtype=torch.float32).unsqueeze(0)     # (1,3,3)
 
-    pose_t = torch.zeros(batchsize, 72).float()
-    shape_t = torch.zeros(batchsize, 10).float()
+def smpl_to_uv_single(pose, shape, cam, smpl_model, H_img=32, W_img=32):
 
-    # smpl_model = SMPL("./data/models/smpl/SMPL_NEUTRAL.npz")
-
-    # inside loop
-    # verts_3d = smpl_model.forward(
-    #     betas=torch.tensor(shape_t, dtype=torch.float32),
-    #     pose=torch.tensor(pose_t, dtype=torch.float32)
-    # )
+    pose_t = torch.zeros(1,72).float()
+    shape_t = torch.zeros(1,10).float()
 
     output = smpl_model(
         betas=shape_t,
@@ -76,30 +55,85 @@ def smpl_to_uv_single(pose: np.ndarray, shape: np.ndarray, cam: np.ndarray, smpl
         return_verts=True
     )
 
-    verts_3d = output.vertices  # (1,6890,3)
+    verts = output.vertices[0]   # (6890,3)
 
-    X = verts_3d[...,0]
-    Y = verts_3d[...,1]
-    Z = verts_3d[...,2].clamp(min=1e-6)
+    X = verts[:,0]
+    Y = verts[:,1]
 
-    fx = cam_t[:,0,0].unsqueeze(1)
-    fy = cam_t[:,1,1].unsqueeze(1)
-    cx = cam_t[:,0,2].unsqueeze(1)
-    cy = cam_t[:,1,2].unsqueeze(1)
+    # cam = [s, tx, ty]
+    cam = torch.as_tensor(cam, dtype=torch.float32)
 
-    u = fx * X / Z + cx
-    v = fy * Y / Z + cy
+    if cam.ndim == 2:   # 如果传入的是3x3矩阵
+        s = 2.0 / max(H_img, W_img)
+        tx = 0.0
+        ty = 0.0
+    else:
+        s  = cam[0]
+        tx = cam[1]
+        ty = cam[2]
 
-    uv_pixels = torch.stack([u,v], dim=-1)  # (1,6890,2)
+    u = s * X + tx
+    v = s * Y + ty
 
-    # normalize [-1,1]
-    u_norm = 2 * (uv_pixels[...,0] / (W_img - 1)) - 1
-    v_norm = 2 * (uv_pixels[...,1] / (H_img - 1)) - 1
-    verts_uv = torch.stack([u_norm, v_norm], dim=-1).squeeze(0) # (6890,2)
-    ret = verts_uv.detach().cpu().numpy()
+    verts_uv = torch.stack([u, v], dim=-1)
 
-    return ret
+    # 保证 grid_sample 可用
+    verts_uv = torch.clamp(verts_uv, -1, 1)
 
+    return verts_uv.detach().cpu().numpy()
+
+
+
+
+def weak_perspective_projection(verts, cam):
+    """
+    verts: (B,6890,3)
+    cam: (B,3) -> [scale, tx, ty]
+
+    return:
+        uv: (B,6890,2)  in [-1,1]
+    """
+
+    X = verts[..., 0]
+    Y = verts[..., 1]
+
+    s = cam[:, 0].unsqueeze(1)
+    tx = cam[:, 1].unsqueeze(1)
+    ty = cam[:, 2].unsqueeze(1)
+
+    u = s * X + tx
+    v = s * Y + ty
+
+    uv = torch.stack([u, v], dim=-1)
+
+    return uv
+
+
+
+
+
+
+def build_smpl_adjacency(smpl_model):
+
+    faces = smpl_model.faces
+    num_verts = smpl_model.v_template.shape[0]
+
+    adj = np.zeros((num_verts, num_verts))
+
+    for f in faces:
+        i, j, k = f
+        adj[i, j] = adj[j, i] = 1
+        adj[j, k] = adj[k, j] = 1
+        adj[k, i] = adj[i, k] = 1
+
+    adj = adj + np.eye(num_verts)
+
+    deg = np.sum(adj, axis=1)
+    deg_inv = np.diag(1.0 / deg)
+
+    adj = deg_inv @ adj
+
+    return torch.tensor(adj, dtype=torch.float32)
 
 def build_samples(imgnames: np.ndarray, labels: np.ndarray, poses: np.ndarray, shapes: np.ndarray, cams: np.ndarray) -> List[dict]:
     """
@@ -125,6 +159,14 @@ def build_samples(imgnames: np.ndarray, labels: np.ndarray, poses: np.ndarray, s
         use_pca=False,
         batch_size=1
     )
+
+
+    # -----------------------------
+    # Build adjacency once
+    # -----------------------------
+    # adjacency = build_smpl_adjacency(smpl_model)        # Tensor(6890,6890)
+    #
+    # torch.save(adjacency, f"adjacency.pth")
 
     for i in range(B):
         # imgname
@@ -175,7 +217,7 @@ def build_samples(imgnames: np.ndarray, labels: np.ndarray, poses: np.ndarray, s
             "pose": pose_list,
             "shape": shape_list,
             "cam": cam_list,
-            "verts_uv": verts_uv_list   # ✅ 已生成 uv
+            "verts_uv": verts_uv_list   # [-1,1]
         })
 
     return samples
@@ -195,7 +237,7 @@ def main():
     poses_path = os.path.join(dataset_dir, "pose.npy")
     shapes_path = os.path.join(dataset_dir, "shape.npy")
     cams_path = os.path.join(dataset_dir, "cam_k.npy")
-    out_path = args.out or os.path.join(dataset_dir, "samples_smpl_cam_standard.pth")      # TODO: samples.pth
+    out_path = args.out or os.path.join(dataset_dir, "samples_smpl_cam_standard2.pth")      # TODO: samples.pth
 
     imgnames = load_npy(imgname_path)       # (4380,)
     labels = load_npy(labels_path)          # (4380,6890)

@@ -5,7 +5,7 @@ import torch.nn as nn
 from sam_3d_body.build_models import load_sam_3d_body
 # from contact_head import ContactPredictionHead
 # from contact_head_linear import ContactHead
-from contact_head_linear3 import ContactHead
+from contact_head_linear5 import ContactHead
 import torch
 
 from util_smpl import smpl_to_uv_batch
@@ -24,6 +24,8 @@ class Sam3DWithContact(nn.Module):
             p.requires_grad = False
 
         self.contact_head = ContactHead()       # TODO: use a simple linear head firstly.
+
+        self.adjacencyMatrix = torch.load('adjacency.pth')
 
     def forward(self, batch, label):
         out = self.sam3d(batch)
@@ -47,7 +49,8 @@ class Sam3DWithContact(nn.Module):
         #     gender="neutral",
         #     device="cuda"
         # )
-        contact_probs = self.contact_head(image_embeddings,verts_uv)
+        self.adjacencyMatrix = self.adjacencyMatrix.to(image_embeddings.device)
+        contact_probs = self.contact_head(image_embeddings,verts_uv, self.adjacencyMatrix)
 
         out["contact_probs"] = contact_probs
         # TODO:

@@ -25,12 +25,13 @@ optimizer = torch.optim.AdamW(
     lr=2e-5
 )
 
-ckpt = torch.load("sam3d_damon_6.pth", map_location=device)
-model.load_state_dict(ckpt, strict=False)    # model.load_state_dict(torch.load(ckpt_path, map_location=device), strict=False), model.load_state_dict(ckpt["model"], strict=False)
+# ckpt = torch.load("sam3d_damon_1.pth", map_location=device)
+# model.load_state_dict(ckpt, strict=False)    # model.load_state_dict(torch.load(ckpt_path, map_location=device), strict=False), model.load_state_dict(ckpt["model"], strict=False)
 # optimizer.load_state_dict(ckpt["optimizer"])
 # start_epoch = ckpt["epoch"] + 1
 
-TRAIN_SAMPLES = torch.load('samples_smpl_cam_standard.pth')
+TRAIN_SAMPLES = torch.load('samples_smpl_cam_standard2.pth')     # 'samples_smpl_cam_special.pth'
+
 dataset = DamonDataset(TRAIN_SAMPLES)
 loader = DataLoader(dataset, batch_size=1)
 output_folder = "./datasets/damon"
@@ -42,7 +43,7 @@ criterion_shape = torch.nn.MSELoss()
 writer = SummaryWriter("logs/train")
 global_step = 0
 
-for epoch in range(6):
+for epoch in range(20):
     model.train()
     for label in loader:
         # TODO: load batch by b["id"], then put to cuda
@@ -65,8 +66,8 @@ for epoch in range(6):
                 #     + 0.05 * mesh_loss(out["verts"], gt_v)
                 # )
                 contact_probs = out["contact_probs"]        # (1,6890)
-                if(i==0):
-                    np.save(f"contact_{0}.npy", contact_probs.detach().cpu().numpy())
+
+                # np.save(f"contact_1_{i}.npy", contact_probs.detach().cpu().numpy()) # for evaluate
                 loss_contact = criterion_contact(contact_probs, gt_c)   # (0.6930)     # contact_probs shape: (1,6890),gt_c shape:(1,6890)
 
                 mhr = out["mhr"]
@@ -105,4 +106,4 @@ for epoch in range(6):
             # print(e)
             # traceback.print_exc()
     # torch.save(model.state_dict(), f"sam3d_damon_{epoch}.pth")
-torch.save(model.state_dict(), f"sam3d_damon_6.pth")
+torch.save(model.state_dict(), f"sam3d_damon_20.pth")
