@@ -129,7 +129,7 @@ class ContactHead(nn.Module):
         # ------------------------------------------------
         # 1. vertex feature sampling
         # ------------------------------------------------
-        v_feat = self.sample_vertex_features(
+        v_feat = self.sample_vertex_features_fast2(
             feat_map,
             verts_uv
         )  # (B,6890,1280)
@@ -170,7 +170,7 @@ class ContactHead(nn.Module):
 
         return prob
 
-    def sample_vertex_features_fast(feat_map, verts_xy):
+    def sample_vertex_features_fast(self, feat_map, verts_xy):
         B, C, H, W = feat_map.shape
         N = verts_xy.shape[1]
 
@@ -209,8 +209,54 @@ class ContactHead(nn.Module):
                 wd.unsqueeze(-1) * Id
         )
 
-        return out
+        return out.squeeze(1)  # Tensor(1,1,1680,1280)
 
+    def sample_vertex_features_fast2(self, feat_map, verts_xy):
+        B, C, H, W = feat_map.shape
+        N = verts_xy.shape[1]
+
+        x = verts_xy[..., 0]
+        y = verts_xy[..., 1]
+
+        # 4 neighbor pixels
+        x0 = torch.floor(x).long()
+        x1 = x0 + 1
+        y0 = torch.floor(y).long()
+        y1 = y0 + 1
+
+        x0 = x0.clamp(0, W - 1) # forces all values in a tensor to stay between min and max
+        x1 = x1.clamp(0, W - 1)
+        y0 = y0.clamp(0, H - 1)
+        y1 = y1.clamp(0, H - 1)
+
+        # bilinear weights
+        wa = (x1 - x) * (y1 - y)
+        wb = (x1 - x) * (y - y0)
+        wc = (x - x0) * (y1 - y)
+        wd = (x - x0) * (y - y0)
+
+        # gather features
+        feat = feat_map.permute(0, 2, 3, 1)  # (B,H,W,C)
+
+        # Ia = feat[:, y0, x0]
+        # Ib = feat[:, y1, x0]
+        # Ic = feat[:, y0, x1]
+        # Id = feat[:, y1, x1]
+        batch_idx = torch.arange(B, device=feat.device).view(B, 1)
+
+        Ia = feat[batch_idx, y0, x0]
+        Ib = feat[batch_idx, y1, x0]
+        Ic = feat[batch_idx, y0, x1]
+        Id = feat[batch_idx, y1, x1]
+
+        out = (
+                wa.unsqueeze(-1) * Ia +
+                wb.unsqueeze(-1) * Ib +
+                wc.unsqueeze(-1) * Ic +
+                wd.unsqueeze(-1) * Id
+        )
+
+        return out
 
 # test
 def test():
