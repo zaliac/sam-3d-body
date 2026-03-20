@@ -3,19 +3,19 @@ import smplx
 
 def smpl_to_uv_batch(pose, shape, K, H_img, W_img, smpl_model_path, gender="neutral", device="cpu"):
     """
-    Batch 版 SMPL -> verts_uv 生成函数
+    Batch SMPL to UV coordinates for grid_sample.
 
     Args:
-        pose: (B,72) SMPL pose
+        pose: (B,72) SMPL pose in degrees
         shape: (B,10) SMPL shape
-        K: (B,3,3) 相机内参
-        H_img, W_img: 原图尺寸
-        smpl_model_path: SMPL 模型路径
-        gender: "neutral", "male", "female"
-        device: "cuda" or "cpu"
+        K: (B,3,3) camera intrinsics
+        H_img, W_img: image height/width
+        smpl_model_path: path to SMPL model
+        gender: "neutral"
+        device: "cpu" or "cuda"
 
     Returns:
-        verts_uv: (B,6890,2) in [-1,1]
+        verts_uv: (B,6890,2) in [-1,1] for grid_sample
     """
     B = pose.shape[0]
 
@@ -34,31 +34,76 @@ def smpl_to_uv_batch(pose, shape, K, H_img, W_img, smpl_model_path, gender="neut
         global_orient=pose[:,:3].to(device),
         return_verts=True
     )
-    verts_3d = output.vertices  # (B,6890,3)
 
-    # 3 project to pixel coordination
-    X = verts_3d[...,0]
-    Y = verts_3d[...,1]
-    Z = verts_3d[...,2].clamp(min=1e-6)
+    # Get vertices in meters
+    verts_3d = output.vertices * 0.001  # mm to m  * 0.001
 
-    fx = K[:,0,0].unsqueeze(1)  # (B,1)
-    fy = K[:,1,1].unsqueeze(1)
-    cx = K[:,0,2].unsqueeze(1)
-    cy = K[:,1,2].unsqueeze(1)
+    # Project to image pixels
+    X = verts_3d[..., 0]
+    Y = verts_3d[..., 1]
+    Z = verts_3d[..., 2].clamp(min=1e-6)  # Avoid division by zero
 
-    u = fx * X / Z + cx
-    v = fy * Y / Z + cy
+    fx = K[:, 0, 0].unsqueeze(1)
+    fy = K[:, 1, 1].unsqueeze(1)
+    cx = K[:, 0, 2].unsqueeze(1)
+    cy = K[:, 1, 2].unsqueeze(1)
 
-    uv_pixels = torch.stack([u,v], dim=-1)  # (B,6890,2)
+    u = fx * (X / Z) + cx
+    v = fy * (-Y / Z) + cy  # Flip for image v increasing up or down
 
-    # 4 normalize to [-1,1]，for grid_sample
-    u_norm = 2 * (uv_pixels[...,0] / (W_img - 1)) - 1
-    v_norm = 2 * (uv_pixels[...,1] / (H_img - 1)) - 1
+    # Normalize to [-1, 1] for grid_sample (assuming feature map matches image scale)
+    u_norm = 2 * (u / W_img) - 1
+    v_norm = 2 * (v / H_img) - 1
+
     verts_uv = torch.stack([u_norm, v_norm], dim=-1)
 
     return verts_uv
 
 
+
+def project_vertices(vertices, K):
+    """
+    vertices: [B,6890,3]
+    K: [B,3,3]
+    return: UV [B,6890,2]
+    """
+
+    B, N, _ = vertices.shape
+
+    x = vertices[:,:,0]
+    y = vertices[:,:,1]
+    z = vertices[:,:,2].clamp(min=1e-6)
+
+    fx = K[:,0,0].unsqueeze(1)
+    fy = K[:,1,1].unsqueeze(1)
+    cx = K[:,0,2].unsqueeze(1)
+    cy = K[:,1,2].unsqueeze(1)
+
+    u = fx * (x / z) + cx
+    v = fy * (y / z) + cy
+
+    uv = torch.stack([u,v], dim=-1)
+
+    return uv
+
+
+def smpl_to_uv(pose, shape, camera, smpl_model):
+
+    global_orient = pose[:, :3]
+    body_pose = pose[:, 3:]
+
+    output = smpl_model(
+        betas=shape,
+        body_pose=body_pose,
+        global_orient=global_orient,
+        return_verts=True
+    )
+
+    vertices = output.vertices
+
+    uv = project_vertices(vertices, camera)
+
+    return vertices, uv
 '''
 
 # example

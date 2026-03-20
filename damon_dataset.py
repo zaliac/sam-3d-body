@@ -15,10 +15,10 @@ class DamonDataset(Dataset):
         self.samples = samples
         self.img_size = img_size
 
-        # self.transform = transforms.Compose([
-        #     transforms.Resize((img_size, img_size)),
-        #     transforms.ToTensor()
-        # ])
+        self.transform = transforms.Compose([
+            transforms.Resize((img_size, img_size)),
+            transforms.ToTensor()
+        ])
         # self.vertices = np.load("./datasets/smpl_standard_vertices.npy", allow_pickle=True)
 
     def __len__(self):

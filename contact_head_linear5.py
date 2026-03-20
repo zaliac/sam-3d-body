@@ -129,7 +129,7 @@ class ContactHead(nn.Module):
         # ------------------------------------------------
         # 1. vertex feature sampling
         # ------------------------------------------------
-        v_feat = self.sample_vertex_features_fast2(
+        v_feat = self.sample_vertex_features(
             feat_map,
             verts_uv
         )  # (B,6890,1280)
@@ -166,9 +166,12 @@ class ContactHead(nn.Module):
         # ------------------------------------------------
         logits = self.classifier(v_feat).squeeze(-1)
 
-        prob = torch.sigmoid(logits)
+        # prob = torch.sigmoid(logits)
+        #
+        # return prob
 
-        return prob
+        # Remove sigmoid, return logits for BCEWithLogitsLoss
+        return logits
 
     def sample_vertex_features_fast(self, feat_map, verts_xy):
         B, C, H, W = feat_map.shape

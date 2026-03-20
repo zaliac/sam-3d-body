@@ -22,7 +22,7 @@ model = Sam3DWithContact('checkpoints/sam-3d-body-dinov3/model.ckpt').to(device)
 
 optimizer = torch.optim.AdamW(
     filter(lambda p: p.requires_grad, model.parameters()),
-    lr=2e-5
+    lr=2e-5     # lr=2e-5 lr=1e-4
 )
 
 # ckpt = torch.load("sam3d_damon_1.pth", map_location=device)
@@ -30,13 +30,18 @@ optimizer = torch.optim.AdamW(
 # optimizer.load_state_dict(ckpt["optimizer"])
 # start_epoch = ckpt["epoch"] + 1
 
-TRAIN_SAMPLES = torch.load('samples_smpl_cam_standard2.pth')     # 'samples_smpl_cam_special.pth'
+TRAIN_SAMPLES = torch.load('samples_smpl_cam_standard2_updated.pth', weights_only=False)     # 'samples_smpl_cam_special.pth'
 
 dataset = DamonDataset(TRAIN_SAMPLES)
 loader = DataLoader(dataset, batch_size=1)
 output_folder = "./datasets/damon"
-# criterion = nn.BCEWithLogitsLoss()
-criterion_contact = nn.BCELoss()
+
+# criterion_contact = nn.BCELoss()
+# Replace the weight and criterion lines:
+pos_weight = torch.tensor(11.411, device=device)
+criterion_contact = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+
+
 criterion_pose = torch.nn.MSELoss()
 criterion_shape = torch.nn.MSELoss()
 
@@ -68,7 +73,10 @@ for epoch in range(20):
                 contact_probs = out["contact_probs"]        # (1,6890)
 
                 # np.save(f"contact_1_{i}.npy", contact_probs.detach().cpu().numpy()) # for evaluate
-                loss_contact = criterion_contact(contact_probs, gt_c)   # (0.6930)     # contact_probs shape: (1,6890),gt_c shape:(1,6890)
+                # loss_contact = criterion_contact(contact_probs, gt_c)   # (0.6930)     # contact_probs shape: (1,6890),gt_c shape:(1,6890)
+                loss_contact = criterion_contact(contact_probs, gt_c)  # contact_probs is now logits
+                if(i%100==0):
+                    print("contact probs mean", torch.sigmoid(contact_probs).mean().item())
 
                 mhr = out["mhr"]
                 pred_pose = mhr["smpl_pose"]        # (1,72)
@@ -82,10 +90,11 @@ for epoch in range(20):
                 pred_shape = mhr["smpl_shape"]
                 loss_shape = criterion_shape(pred_shape, gt_shape_tensor)   # (0.4595)
 
-                loss = loss_contact + loss_pose + loss_shape    # TODO: add loss weights
+                loss = 0.1*loss_contact + loss_pose + loss_shape    # TODO: add loss weights
 
                 optimizer.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
 
                 # ================= TensorBoard =================

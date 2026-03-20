@@ -8,7 +8,7 @@ from sam_3d_body.build_models import load_sam_3d_body
 from contact_head_linear5 import ContactHead
 import torch
 
-from util_smpl import smpl_to_uv_batch
+# from util_smpl import smpl_to_uv_batch
 
 class Sam3DWithContact(nn.Module):
     def __init__(self, checkpoint_path):
@@ -50,7 +50,7 @@ class Sam3DWithContact(nn.Module):
         #     device="cuda"
         # )
         self.adjacencyMatrix = self.adjacencyMatrix.to(image_embeddings.device)
-        contact_probs = self.contact_head(image_embeddings,verts_uv, self.adjacencyMatrix)
+        contact_probs = self.contact_head(image_embeddings,verts_uv)    # , self.adjacencyMatrix
 
         out["contact_probs"] = contact_probs
         # TODO:

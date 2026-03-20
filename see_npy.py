@@ -83,10 +83,10 @@ baseURL = '/home/l_z80934/projects/zip/damon/train/'
 # np.savetxt("contact_label_objectwise_wFootGround_0.txt", objects[0])
 # print(objects[0])
 
-# objects = np.load(baseURL+"cam_k.npy", allow_pickle=True)       # (4384, 3, 3)
-# np.savetxt("cam_k_0.txt", objects[0])
-# print(objects[0])
-
-objects = torch.load("/home/l_z80934/projects/sam-3d-body/datasets/damon/batch_0.pt", map_location="cpu", weights_only=False)       # np.load("./datasets/damon/batch_0.pt", allow_pickle=True)
+objects = np.load(baseURL+"cam_k_2.npy", allow_pickle=True)       # (4384, 3, 3)
+np.savetxt("cam_k_0_2.txt", objects[0])
 print(objects[0])
+
+# objects = torch.load("/home/l_z80934/projects/sam-3d-body/datasets/damon/batch_0.pt", map_location="cpu", weights_only=False)       # np.load("./datasets/damon/batch_0.pt", allow_pickle=True)
+# print(objects[0])
 

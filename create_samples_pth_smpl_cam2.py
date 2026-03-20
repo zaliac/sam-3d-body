@@ -236,7 +236,7 @@ def main():
     labels_path = args.labels or os.path.join(dataset_dir, "contact_label.npy") # contact_label_smplx.npy
     poses_path = os.path.join(dataset_dir, "pose.npy")
     shapes_path = os.path.join(dataset_dir, "shape.npy")
-    cams_path = os.path.join(dataset_dir, "cam_k.npy")
+    cams_path = os.path.join(dataset_dir, "cam_k_2.npy")
     out_path = args.out or os.path.join(dataset_dir, "samples_smpl_cam_standard2.pth")      # TODO: samples.pth
 
     imgnames = load_npy(imgname_path)       # (4380,)
