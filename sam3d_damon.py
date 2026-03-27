@@ -5,10 +5,10 @@ import torch.nn as nn
 from sam_3d_body.build_models import load_sam_3d_body
 # from contact_head import ContactPredictionHead
 # from contact_head_linear import ContactHead
-from contact_head_linear5 import ContactHead
+from contact_head import ContactHead
 import torch
 
-# from util_smpl import smpl_to_uv_batch
+from util_smpl import smpl_to_uv_batch
 
 class Sam3DWithContact(nn.Module):
     def __init__(self, checkpoint_path):
@@ -32,25 +32,28 @@ class Sam3DWithContact(nn.Module):
 
         # vertex_features = out["vertex_features"]  # (B,V,256)
         # contact = self.contact_head(vertex_features)
-        image_embeddings = out["image_embeddings"]      # (batch_size,1280,32,32)
+        image_embeddings = out["image_embeddings"]  # (batch_size,1280,32,32)
         # verts_uv = torch.ones(1, 6890, 2)   # TODO:add uv position
-        # gt_pose = label["pose"]
-        # gt_shape = label["shape"]
-        # gt_cam = label["cam"]
-        verts_uv = label["verts_uv"]    # (1,6890,2)
+        gt_pose = label["pose"]
+        gt_shape = label["shape"]
+        gt_cam = label["cam"]
+        # verts_uv = label["verts_uv"]    # (1,6890,2)
+        pred_pose = out['mhr']['smpl_pose']
+        pred_shape = out['mhr']['smpl_shape']
+        pred_cam = out['mhr']['pred_cam']
 
-        # verts_uv = smpl_to_uv_batch(
-        #     pose=gt_pose,  # (B,72)
-        #     shape=gt_shape,  # (B,10)
-        #     K=gt_cam,  # (B,3,3)
-        #     H_img=32,        # H_img
-        #     W_img=32,         # W_img
-        #     smpl_model_path="./data/smpl/SMPL_NEUTRAL.pkl",
-        #     gender="neutral",
-        #     device="cuda"
-        # )
-        self.adjacencyMatrix = self.adjacencyMatrix.to(image_embeddings.device)
-        contact_probs = self.contact_head(image_embeddings,verts_uv)    # , self.adjacencyMatrix
+        verts_uv = smpl_to_uv_batch(
+            pose=gt_pose,  # (B,72)
+            shape=gt_shape,  # (B,10)
+            K=gt_cam,  # (B,3,3)
+            H_img=32,  # H_img
+            W_img=32,  # W_img
+            smpl_model_path="./data/smpl/SMPL_NEUTRAL.pkl",
+            gender="neutral",
+            device="cuda"
+        )
+        # self.adjacencyMatrix = self.adjacencyMatrix.to(image_embeddings.device)
+        contact_probs = self.contact_head(image_embeddings, verts_uv)  # , self.adjacencyMatrix
 
         out["contact_probs"] = contact_probs
         # TODO:

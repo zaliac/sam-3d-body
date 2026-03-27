@@ -30,7 +30,7 @@ optimizer = torch.optim.AdamW(
 # optimizer.load_state_dict(ckpt["optimizer"])
 # start_epoch = ckpt["epoch"] + 1
 
-TRAIN_SAMPLES = torch.load('samples_smpl_cam_standard2_updated.pth', weights_only=False)     # 'samples_smpl_cam_special.pth'
+TRAIN_SAMPLES = torch.load('samples_smpl_cam2.pth', weights_only=False)     # 'samples_smpl_cam_special.pth'
 
 dataset = DamonDataset(TRAIN_SAMPLES)
 loader = DataLoader(dataset, batch_size=1)
