@@ -62,6 +62,8 @@ class ContactHead(nn.Module):
         #     img_tokens
         # )  # (B,6890,256)
 
+        # TODO: change the feat_map verts_uv
+
         att = self.cross_attn(feat_map, verts_uv)
 
         # ------------------------------------------------

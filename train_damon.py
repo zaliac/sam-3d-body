@@ -60,7 +60,7 @@ for epoch in range(20):
                 label = recursive_to(label, "cuda")
                 batch = recursive_to(batch, "cuda")
 
-                gt_c = label["contact"].float()
+                # gt_c = label["contact"].float()
                 gt_pose = label["pose"]
                 gt_shape = label["shape"]
 
@@ -70,13 +70,18 @@ for epoch in range(20):
                 #     contact_loss(out["contact"], gt_c)
                 #     + 0.05 * mesh_loss(out["verts"], gt_v)
                 # )
-                contact_probs = out["contact_probs"]        # (1,6890)
+                # contact_probs = out["contact_probs"]        # (1,6890)
 
                 # np.save(f"contact_1_{i}.npy", contact_probs.detach().cpu().numpy()) # for evaluate
                 # loss_contact = criterion_contact(contact_probs, gt_c)   # (0.6930)     # contact_probs shape: (1,6890),gt_c shape:(1,6890)
-                loss_contact = criterion_contact(contact_probs, gt_c)  # contact_probs is now logits
+                # loss_contact = criterion_contact(contact_probs, gt_c)  # contact_probs is now logits
+
+                contact_logits = out["contact_logits"]  # [B,6890]
+                gt_c = label["contact"].float().to(contact_logits.device)
+                loss_contact = criterion_contact(contact_logits, gt_c)
                 if(i%100==0):
-                    print("contact probs mean", torch.sigmoid(contact_probs).mean().item())
+                    # print("contact probs mean", torch.sigmoid(contact_probs).mean().item())
+                    print("contact probs mean", torch.sigmoid(contact_logits).mean().item())
 
                 mhr = out["mhr"]
                 pred_pose = mhr["smpl_pose"]        # (1,72)

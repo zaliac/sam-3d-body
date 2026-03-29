@@ -124,7 +124,7 @@ class ContactHead(nn.Module):
         adjacency: (6890,6890)
         """
 
-        B = feat_map.shape[0]
+        # B = feat_map.shape[0]
 
         # ------------------------------------------------
         # 1. vertex feature sampling
