@@ -85,10 +85,21 @@ class ContactHead(nn.Module):
 
         # classifier
         self.classifier = nn.Sequential(
-            nn.Linear(hidden_dim, 128),
+            # nn.Linear(hidden_dim, 128),
+            # nn.ReLU(),
+            # nn.Linear(128, 1)
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(128, 1)
+            nn.Dropout(p=0.5),
+            nn.Linear(hidden_dim, 1)
         )
+
+        # self.classifier = nn.Sequential(
+        #     nn.Linear(hidden_dim, 4096, True),
+        #     nn.ReLU(),
+        #     nn.Linear(4096, 6890, True),
+        #     nn.Sigmoid()
+        # )
 
     # ------------------------------------------------
     # vertex feature sampling

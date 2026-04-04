@@ -45,13 +45,13 @@ class SMPL:
 
 def smpl_to_uv_single(pose, shape, cam, smpl_model, H_img=32, W_img=32):
 
-    pose_t = torch.zeros(1,72).float()
-    shape_t = torch.zeros(1,10).float()
+    # pose_t = torch.zeros(1,72).float()
+    # shape_t = torch.zeros(1,10).float()
 
     output = smpl_model(
-        betas=shape_t,
-        body_pose=pose_t[:,3:],
-        global_orient=pose_t[:,:3],
+        betas=shape,
+        body_pose=pose[:,3:],
+        global_orient=pose[:,:3],
         return_verts=True
     )
 
@@ -135,7 +135,7 @@ def build_smpl_adjacency(smpl_model):
 
     return torch.tensor(adj, dtype=torch.float32)
 
-def build_samples(imgnames: np.ndarray, labels: np.ndarray, poses: np.ndarray, shapes: np.ndarray, cams: np.ndarray) -> List[dict]:
+def build_samples(imgnames: np.ndarray, labels: np.ndarray, poses: np.ndarray, shapes: np.ndarray, cams: np.ndarray, transls: np.ndarray) -> List[dict]:
     """
     构建 sample，同时生成 verts_uv
     """
@@ -197,27 +197,35 @@ def build_samples(imgnames: np.ndarray, labels: np.ndarray, poses: np.ndarray, s
         except Exception:
             shape_list = shape_i
 
-        # cam
+        # cam: camera intrinsic matrix
         cam_i = cams[i]
         try:
             cam_list = cam_i.tolist()
         except Exception:
             cam_list = cam_i
 
-        # verts_uv
-        verts_uv_i = smpl_to_uv_single(pose_i, shape_i, cam_i, smpl_model,32, 32)   # pose_i, shape_i  change to standard smpl.
+        # transl:SMPL root translation
+        transl_i = transls[i]
         try:
-            verts_uv_list = verts_uv_i.tolist()
+            transl_list = transl_i.tolist()
         except Exception:
-            verts_uv_list = verts_uv_i
+            transl_list = transl_i
+
+        # verts_uv
+        # verts_uv_i = smpl_to_uv_single(pose_i, shape_i, cam_i, smpl_model,32, 32)   # pose_i, shape_i  change to standard smpl.
+        # try:
+        #     verts_uv_list = verts_uv_i.tolist()
+        # except Exception:
+        #     verts_uv_list = verts_uv_i
 
         samples.append({
             "imgname": name,
             "vertices": verts_list,
             "pose": pose_list,
             "shape": shape_list,
-            "cam": cam_list,
-            "verts_uv": verts_uv_list   # [-1,1]
+            "cam_k": cam_list,
+            "SMPL_root_translation": transl_list,
+            # "verts_uv": verts_uv_list   # [-1,1]
         })
 
     return samples
@@ -237,15 +245,17 @@ def main():
     poses_path = os.path.join(dataset_dir, "pose.npy")
     shapes_path = os.path.join(dataset_dir, "shape.npy")
     cams_path = os.path.join(dataset_dir, "cam_k_2.npy")
-    out_path = args.out or os.path.join(dataset_dir, "samples_smpl_cam_standard2.pth")      # TODO: samples.pth
+    transl_path = os.path.join(dataset_dir, "transl.npy")
+    out_path = args.out or os.path.join(dataset_dir, "labels.pth")      # TODO: samples.pth
 
     imgnames = load_npy(imgname_path)       # (4380,)
     labels = load_npy(labels_path)          # (4380,6890)
     poses = load_npy(poses_path)
     shapes = load_npy(shapes_path)
     cams = load_npy(cams_path)
+    transls = load_npy(transl_path)
 
-    samples = build_samples(imgnames, labels, poses, shapes, cams)
+    samples = build_samples(imgnames, labels, poses, shapes, cams, transls)
 
     # Ensure output dir exists
     out_dir = os.path.dirname(out_path)

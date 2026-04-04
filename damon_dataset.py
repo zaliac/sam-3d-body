@@ -46,5 +46,16 @@ class DamonDataset(Dataset):
             "pose":s["pose"],           # (4384, 72)
             "shape":s["shape"],         # (4384, 10)
             "contact": torch.tensor(s['vertices']).long(),     # "contact_labels"
-            "verts_uv":torch.tensor(s['verts_uv'])
+            # "verts_uv":torch.tensor(s['verts_uv']),
+            "cam_k": s["cam_k"],
+            "SMPL_root_translation": s["SMPL_root_translation"],
         }
+
+    '''
+                "imgname": name,
+            "vertices": verts_list,
+            "pose": pose_list,
+            "shape": shape_list,
+            "cam_k": cam_list,
+            "SMPL_root_translation": transl_list,
+    '''

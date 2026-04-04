@@ -85,13 +85,13 @@ class Sam3DWithContact(nn.Module):
 
 
         # 1) verts from SMPL
-        smpl_out = self.smpl(
-            betas=smpl_shape,
-            global_orient=smpl_pose[:, :3],
-            body_pose=smpl_pose[:, 3:],  # 69 dims
-            return_verts=True,
-        )
-        verts = smpl_out.vertices  # [B,6890,3]
+        # smpl_out = self.smpl(
+        #     betas=smpl_shape,
+        #     global_orient=smpl_pose[:, :3],
+        #     body_pose=smpl_pose[:, 3:],  # 69 dims
+        #     return_verts=True,
+        # )
+        # verts = smpl_out.vertices  # [B,6890,3]
 
         # 2) project to UV
         # verts_cam = verts + pred_cam_t[:, None, :]
@@ -122,9 +122,10 @@ class Sam3DWithContact(nn.Module):
         # out["contact_probs"] = torch.sigmoid(contact_logits)
         # out["pred_smpl_vertices"] = verts
 
-        verts_cam = verts + pred_cam_t[:, None, :]
-        uv_px = self._project_with_K(verts_cam, cam_int)  # [B,6890,2]
-        verts_uv = self._pixels_to_grid(uv_px, Hf, Wf, ori_img_size)  # [-1,1]
+        # verts_cam = verts + pred_cam_t[:, None, :]
+        # uv_px = self._project_with_K(verts_cam, cam_int)  # [B,6890,2]
+        # verts_uv = self._pixels_to_grid(uv_px, Hf, Wf, ori_img_size)  # [-1,1]
+        verts_uv, valid_mask, verts = self.get_gt_verts_uv(label, self.smpl, Hf, Wf, ori_img_size, ori_img_size.device )
 
         contact_logits = self.contact_head(feat_map, verts_uv, adjacency=None)
 
@@ -132,6 +133,7 @@ class Sam3DWithContact(nn.Module):
         out["verts_uv"] = verts_uv
         out["contact_logits"] = contact_logits
         out["contact_probs"] = torch.sigmoid(contact_logits)
+        out["valid_mask"] = valid_mask
 
         return out
 
@@ -182,3 +184,82 @@ class Sam3DWithContact(nn.Module):
         v = 2.0 * (v_feat / denom_h) - 1.0
 
         return torch.stack([u, v], dim=-1)
+
+
+
+    def get_gt_verts_uv(self, label, smpl_layer, feat_h, feat_w, ori_img_size, device):
+        """
+        label keys:
+          - pose: [B,72] or [72]
+          - shape: [B,10] or [10]
+          - cam_k: [B,3,3] or [3,3]
+          - SMPL_root_translation: [B,3] or [3]
+        ori_img_size: [B,2] (W,H) in original image pixels
+        returns:
+          verts_uv_grid: [B,6890,2] in [-1,1] for grid_sample
+          valid_mask: [B,6890] (True if inside feature map grid)
+        """
+        pose = torch.as_tensor(label["pose"], dtype=torch.float32, device=device)
+        shape = torch.as_tensor(label["shape"], dtype=torch.float32, device=device)
+        K = torch.as_tensor(label["cam_k"], dtype=torch.float32, device=device)
+        transl = torch.as_tensor(label["SMPL_root_translation"], dtype=torch.float32, device=device)
+
+        if pose.ndim == 1:
+            pose = pose.unsqueeze(0)
+        if shape.ndim == 1:
+            shape = shape.unsqueeze(0)
+        if K.ndim == 2:
+            K = K.unsqueeze(0)
+        if transl.ndim == 1:
+            transl = transl.unsqueeze(0)
+
+        # 1) GT SMPL vertices in body frame
+        smpl_out = smpl_layer(
+            betas=shape,                    # [B,10]
+            global_orient=pose[:, :3],      # [B,3]
+            body_pose=pose[:, 3:],          # [B,69]
+            return_verts=True,
+        )
+        verts = smpl_out.vertices           # [B,6890,3]
+
+        # 2) Apply GT root translation (camera/world depending on dataset convention)
+        verts_cam = verts + transl[:, None, :]   # [B,6890,3]
+
+        # 3) Perspective projection with GT intrinsics
+        x = verts_cam[..., 0]
+        y = verts_cam[..., 1]
+        z = verts_cam[..., 2].clamp(min=1e-6)
+
+        fx = K[:, 0, 0].unsqueeze(1)
+        fy = K[:, 1, 1].unsqueeze(1)
+        cx = K[:, 0, 2].unsqueeze(1)
+        cy = K[:, 1, 2].unsqueeze(1)
+
+        u_px = fx * (x / z) + cx
+        v_px = fy * (y / z) + cy
+        # If your dataset uses opposite Y camera convention, try:
+        # v_px = fy * (-y / z) + cy
+
+        # 4) Original pixel -> feature-map pixel
+        # ori_img_size is (W,H)
+        if ori_img_size.ndim == 3:   # e.g., [B,1,2]
+            ori_img_size = ori_img_size.squeeze(1)
+        ori_w = ori_img_size[:, 0].unsqueeze(1).to(device).clamp(min=1e-6)
+        ori_h = ori_img_size[:, 1].unsqueeze(1).to(device).clamp(min=1e-6)
+
+        u_feat = u_px * (feat_w / ori_w)
+        v_feat = v_px * (feat_h / ori_h)
+
+        # 5) Feature pixel -> normalized grid [-1,1] (align_corners=True)
+        denom_w = max(feat_w - 1, 1)
+        denom_h = max(feat_h - 1, 1)
+
+        u = 2.0 * (u_feat / denom_w) - 1.0
+        v = 2.0 * (v_feat / denom_h) - 1.0
+        verts_uv_grid = torch.stack([u, v], dim=-1)   # [B,6890,2]
+
+        valid_mask = (
+            (verts_uv_grid[..., 0] >= -1.0) & (verts_uv_grid[..., 0] <= 1.0) &
+            (verts_uv_grid[..., 1] >= -1.0) & (verts_uv_grid[..., 1] <= 1.0)
+        )
+        return verts_uv_grid, valid_mask, verts     # (1,6890,2), (1,6890), (1,6890,3)

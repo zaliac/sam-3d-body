@@ -1,0 +1,17 @@
+DAMON dataset
+
+The provided metadata in the npz files is described as follows:
+    imgname: relative path to the image file
+    pose : SMPL pose parameters inferred from CLIFF
+    transl : SMPL root translation inferred from CLIFF
+    shape : SMPL shape parameters inferred from CLIFF
+    cam_k : camera intrinsic matrix inferred from CLIFF
+    polygon_2d_contact: 2D contact annotation from HOT
+    contact_label: 3D contact annotations on the SMPL mesh
+    contact_label_smplx: 3D contact annotation on the SMPL-X mesh
+    contact_label_objectwise: 3D contact annotations split into separate object labels on the SMPL mesh
+    contact_label_smplx_objectwise: 3D contact annotations split into separate object labels on the SMPL-X mesh
+    scene_seg: path to the scene segmentation map from Mask2Former
+    part_seg: path to the body part segmentation map
+
+The order of values is the same for all the keys.

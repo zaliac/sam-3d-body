@@ -112,6 +112,8 @@ def main(args):
                     if torch.is_tensor(v):
                         batch[k] = v.cpu()
 
+                # TODO: if image number great than 1, only choose first one.
+
                 torch.save(batch, f"{output_folder}/batch_{i}.pt")
 
     # merge batch
