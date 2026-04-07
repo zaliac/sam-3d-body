@@ -29,9 +29,9 @@ class SAM3DBodyEstimator:
         fov_estimator=None,
     ):
         self.device = sam_3d_body_model.device
-        self.model, self.cfg = sam_3d_body_model, model_cfg
-        self.detector = human_detector
-        self.sam = human_segmentor
+        self.model, self.cfg = sam_3d_body_model, model_cfg     # SAM3DBody
+        self.detector = human_detector  # vitdet
+        self.sam = human_segmentor  # None
         self.fov_estimator = fov_estimator
         self.thresh_wrist_angle = 1.4
 
@@ -102,7 +102,7 @@ class SAM3DBodyEstimator:
         else:
             print("####### Please make sure the input image is in RGB format")
             image_format = "rgb"
-        height, width = img.shape[:2]
+        height, width = img.shape[:2]       # h: 780, w: 1174
 
         if bboxes is not None:
             boxes = bboxes.reshape(-1, 4)
@@ -113,13 +113,13 @@ class SAM3DBodyEstimator:
                 image_format = "bgr"
             print("Running object detector...")
             boxes = self.detector.run_human_detection(
-                img,
-                det_cat_id=det_cat_id,
-                bbox_thr=bbox_thr,
-                nms_thr=nms_thr,
+                img,                        # (780,1174,3)
+                det_cat_id=det_cat_id,      # 0
+                bbox_thr=bbox_thr,          # 0.8
+                nms_thr=nms_thr,            # 0.3
                 default_to_full_image=False,
             )
-            print("Found boxes:", boxes)
+            print("Found boxes:", boxes)    # np:(1,4) [[172.0001983642578, 91.30781555175781, 830.7766723632812, 741.3055419921875]]
             self.is_crop = True
         else:
             boxes = np.array([0, 0, width, height]).reshape(1, 4)
@@ -179,7 +179,7 @@ class SAM3DBodyEstimator:
         outputs = self.model.run_inference(
             img,        # (780,1174,3)
             batch,      # dict:(16)
-            inference_type=inference_type,
+            inference_type=inference_type,          # 'full'
             transform_hand=self.transform_hand,
             thresh_wrist_angle=self.thresh_wrist_angle,
         )

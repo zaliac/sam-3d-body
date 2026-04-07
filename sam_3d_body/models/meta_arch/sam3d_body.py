@@ -604,7 +604,7 @@ class SAM3DBody(BaseModel):
             # To start, keypoints is all [0, 0, -2]. The points get sent into self.pe_layer._pe_encoding,
             # the labels determine the embedding weight (special one for -2, -1, then each of joint.)
             prompt_embeddings, prompt_mask = self.prompt_encoder(
-                keypoints=keypoints
+                keypoints=keypoints     # (1,1,3)
             )  # B x 1 x 1280
             prompt_embeddings = self.prompt_to_token(
                 prompt_embeddings

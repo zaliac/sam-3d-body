@@ -35,8 +35,8 @@ def prepare_batch(
             else:
                 data_info["mask_score"] = np.array(1.0, dtype=np.float32)
         else:
-            data_info["mask"] = np.zeros((height, width, 1), dtype=np.uint8)
-            data_info["mask_score"] = np.array(0.0, dtype=np.float32)
+            data_info["mask"] = np.zeros((height, width, 1), dtype=np.uint8)        # (780,1174,1): 0
+            data_info["mask_score"] = np.array(0.0, dtype=np.float32)               # 0
 
         data_list.append(transform(data_info))
 
