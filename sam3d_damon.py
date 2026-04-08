@@ -6,7 +6,7 @@ from sam_3d_body.build_models import load_sam_3d_body
 # from contact_head import ContactPredictionHead
 # from contact_head_linear import ContactHead
 # from contact_head import ContactHead
-from contact_head_linear5 import ContactHead
+from contact_head_linear7 import ContactHead
 import torch
 
 from util_smpl import smpl_to_uv_batch
@@ -25,8 +25,13 @@ class Sam3DWithContact(nn.Module):
         for p in self.sam3d.backbone.parameters():
             p.requires_grad = False
 
-        self.contact_head = ContactHead(in_channels=1280, hidden_dim=256, num_gcn_layers=3)       # TODO: use a simple linear head firstly.
+        # self.contact_head = ContactHead(in_channels=1280, hidden_dim=256, num_gcn_layers=3)       # TODO: use a simple linear head firstly.
 
+        self.contact_head = ContactHead(
+            smpl_model_dir="./data/models/smpl/SMPL_NEUTRAL.pkl",
+            d_model=1280,
+            num_verts=6890,
+        )
         # self.adjacencyMatrix = torch.load('adjacency.pth')
 
 
@@ -127,7 +132,8 @@ class Sam3DWithContact(nn.Module):
         # verts_uv = self._pixels_to_grid(uv_px, Hf, Wf, ori_img_size)  # [-1,1]
         verts_uv, valid_mask, verts = self.get_gt_verts_uv(label, self.smpl, Hf, Wf, ori_img_size, ori_img_size.device )
 
-        contact_logits = self.contact_head(feat_map, verts_uv, adjacency=None)
+        # contact_logits = self.contact_head(feat_map, verts_uv, adjacency=None)
+        contact_logits = self.contact_head(feat_map)
 
         out["pred_smpl_vertices"] = verts
         out["verts_uv"] = verts_uv
