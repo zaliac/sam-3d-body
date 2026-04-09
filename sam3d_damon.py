@@ -42,12 +42,19 @@ class Sam3DWithContact(nn.Module):
         #     batch_size=1,  # replace dynamically if needed
         # )
 
-        self.smpl = smplx.create(
-            model_path="./data/models/smpl/SMPL_NEUTRAL.pkl",
-            model_type="smpl",
-            gender="neutral",
-            batch_size=1,  # replace dynamically if needed
-        ).to("cuda" if torch.cuda.is_available() else "cpu")
+        # self.smpl = smplx.create(
+        #     model_path="./data/models/smpl/SMPL_NEUTRAL.pkl",
+        #     model_type="smpl",
+        #     gender="neutral",
+        #     batch_size=1,  # replace dynamically if needed
+        # ).to("cuda" if torch.cuda.is_available() else "cpu")
+
+        # in Sam3DWithContact.__init__
+        self.prompt_proj = nn.Sequential(
+            nn.Linear(3, 1280),
+            nn.LayerNorm(1280),
+        )
+
 
     def forward(self, batch, label):
         out = self.sam3d(batch)
@@ -77,16 +84,16 @@ class Sam3DWithContact(nn.Module):
         # self.adjacencyMatrix = self.adjacencyMatrix.to(image_embeddings.device)
         # contact_probs = self.contact_head(image_embeddings, verts_uv)  # , self.adjacencyMatrix
 
-        mhr = out["mhr"]
-        smpl_pose = mhr["smpl_pose"]            # [B,72]
-        smpl_shape = mhr["smpl_shape"]          # [B,10]
-        pred_cam_t = mhr["pred_cam_t"]          # [B,3]
-        cam_int = batch["cam_int"]              # [B,3,3]
-        feat_map = out["image_embeddings"]      # [B,1280,Hf,Wf]
-        ori_img_size = batch["ori_img_size"]    # [B,2], (W,H)  [B,1,2]
-        ori_img_size = ori_img_size.squeeze(1)  # [B,2]
+        # mhr = out["mhr"]
+        # smpl_pose = mhr["smpl_pose"]            # [B,72]
+        # smpl_shape = mhr["smpl_shape"]          # [B,10]
+        # pred_cam_t = mhr["pred_cam_t"]          # [B,3]
+        # cam_int = batch["cam_int"]              # [B,3,3]
+        # feat_map = out["image_embeddings"]      # [B,1280,Hf,Wf]
+        # ori_img_size = batch["ori_img_size"]    # [B,2], (W,H)  [B,1,2]
+        # ori_img_size = ori_img_size.squeeze(1)  # [B,2]
 
-        B, C, Hf, Wf = feat_map.shape
+        # B, C, Hf, Wf = feat_map.shape
 
 
         # 1) verts from SMPL
@@ -130,16 +137,23 @@ class Sam3DWithContact(nn.Module):
         # verts_cam = verts + pred_cam_t[:, None, :]
         # uv_px = self._project_with_K(verts_cam, cam_int)  # [B,6890,2]
         # verts_uv = self._pixels_to_grid(uv_px, Hf, Wf, ori_img_size)  # [-1,1]
-        verts_uv, valid_mask, verts = self.get_gt_verts_uv(label, self.smpl, Hf, Wf, ori_img_size, ori_img_size.device )
+        # verts_uv, valid_mask, verts = self.get_gt_verts_uv(label, self.smpl, Hf, Wf, ori_img_size, ori_img_size.device )
 
         # contact_logits = self.contact_head(feat_map, verts_uv, adjacency=None)
-        contact_logits = self.contact_head(feat_map)
+        # contact_logits = self.contact_head(feat_map)
 
-        out["pred_smpl_vertices"] = verts
-        out["verts_uv"] = verts_uv
+        # in Sam3DWithContact.forward
+        feat_map = out["image_embeddings"]  # [B,1280,32,32]
+        cond = out["condition_info"]  # [B,3]
+        prompt_token = self.prompt_proj(cond).unsqueeze(1)  # [B,1,1280]
+
+        contact_logits = self.contact_head(feat_map, prompt_token=prompt_token)
+
+        # out["pred_smpl_vertices"] = verts
+        # out["verts_uv"] = verts_uv
         out["contact_logits"] = contact_logits
         out["contact_probs"] = torch.sigmoid(contact_logits)
-        out["valid_mask"] = valid_mask
+        # out["valid_mask"] = valid_mask
 
         return out
 
