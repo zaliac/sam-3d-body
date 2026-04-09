@@ -126,6 +126,24 @@ class ContactHead(nn.Module):
         tokens = xyz_feat + self.vert_pos_emb  # (B,6890,1280)
         return tokens
 
+    def forward(self, feat_map, prompt_token=None, return_prob=False):
+        B, C, H, W = feat_map.shape
+        img_tokens = feat_map.flatten(2).transpose(1, 2).contiguous()  # [B,1024,1280]
+
+        if prompt_token is not None:
+            # prompt_token: [B,1,1280] or [B,T,1280]
+            if prompt_token.dim() == 2:
+                prompt_token = prompt_token.unsqueeze(1)
+            img_tokens = torch.cat([prompt_token, img_tokens], dim=1)  # [B,1025,1280] if T=1
+
+        v_tokens = self._build_vertex_tokens(B)  # [B,6890,1280]
+        for blk in self.blocks:
+            v_tokens = blk(v_tokens, img_tokens)
+
+        logits = self.classifier(v_tokens).squeeze(-1)
+        return (logits, torch.sigmoid(logits)) if return_prob else logits
+
+'''
     def forward(self, feat_map, return_prob=False):
         """
         feat_map: (B, 1280, 32, 32)
@@ -156,3 +174,5 @@ class ContactHead(nn.Module):
         if return_prob:
             return logits, torch.sigmoid(logits)
         return logits
+'''
+

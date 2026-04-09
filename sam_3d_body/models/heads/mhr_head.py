@@ -125,8 +125,8 @@ class MHRHead(nn.Module):
 
         # TODO: 1 Initialize the MHR to SMPL transformation layer
         # self.mhr_to_smpl = MHRToSMPLLayer()
-        self.pose_transform = nn.Linear(133, 72)  # Example: Mapping MHR pose to SMPL pose (adjust dimensions if necessary)
-        self.shape_transform = nn.Linear(45, 10)
+        # self.pose_transform = nn.Linear(133, 72)  # Example: Mapping MHR pose to SMPL pose (adjust dimensions if necessary)
+        # self.shape_transform = nn.Linear(45, 10)
 
     def get_zero_pose_init(self, factor=1.0):
         # Initialize pose token with zero-initialized learnable params
@@ -380,13 +380,13 @@ class MHRHead(nn.Module):
         # TODO: 2 After computing MHR output (verts, j3d, jcoords, etc.)
         # smpl_pose, smpl_shape = self.mhr_to_smpl(pred_pose_euler, pred_shape)
         # Transform the pose (MHR -> SMPL)
-        smpl_pose = self.pose_transform(pred_pose_euler)        #  pred_pose_euler(1:133) -> smpl_pose(1,72)
+        # smpl_pose = self.pose_transform(pred_pose_euler)        #  pred_pose_euler(1:133) -> smpl_pose(1,72)
 
         # Transform the shape (MHR -> SMPL)
-        smpl_shape = self.shape_transform(pred_shape)           #  pred_shape(1,45) -> smpl_shape(1,10)
+        # smpl_shape = self.shape_transform(pred_shape)           #  pred_shape(1,45) -> smpl_shape(1,10)
 
         # Add SMPL pose and shape to the output
-        output["smpl_pose"] = smpl_pose     # TODO: change name to pred_smpl_pose / pred_smpl_shape
-        output["smpl_shape"] = smpl_shape
+        # output["smpl_pose"] = smpl_pose     # TODO: change name to pred_smpl_pose / pred_smpl_shape
+        # output["smpl_shape"] = smpl_shape
 
         return output

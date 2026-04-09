@@ -21,11 +21,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # model = Sam3DDamon().to(device)
 model = Sam3DWithContact('checkpoints/sam-3d-body-dinov3/model.ckpt').to(device)       # checkpoints/sam-3d-body-dinov3
 
+# optimizer = torch.optim.AdamW(
+#     filter(lambda p: p.requires_grad, model.parameters()),
+#     lr=5e-4     # lr=2e-5 lr=1e-4
+# )
 optimizer = torch.optim.AdamW(
-    filter(lambda p: p.requires_grad, model.parameters()),
-    lr=2e-5     # lr=2e-5 lr=1e-4
+    model.contact_head.parameters(),  # ← explicitly only contact_head
+    lr=5e-4
 )
-accum_steps = 8
+accum_steps = 32       # 8, 32
 optimizer.zero_grad(set_to_none=True)
 
 # ckpt = torch.load("sam3d_damon_1.pth", map_location=device)
@@ -33,15 +37,15 @@ optimizer.zero_grad(set_to_none=True)
 # optimizer.load_state_dict(ckpt["optimizer"])
 # start_epoch = ckpt["epoch"] + 1
 
-TRAIN_SAMPLES = torch.load('labels.pth', weights_only=False)     # 'samples_smpl_cam_special.pth'
+TRAIN_SAMPLES = torch.load('labels_filtered.pth', weights_only=False)     # 'samples_smpl_cam_special.pth'
 
 dataset = DamonDataset(TRAIN_SAMPLES)
-loader = DataLoader(dataset, batch_size=1)
+# loader = DataLoader(dataset, batch_size=8)
 output_folder = "./datasets/damon"
 
 # criterion_contact = nn.BCELoss()
 # Replace the weight and criterion lines:
-pos_weight = torch.tensor(11.411, device=device)
+pos_weight = torch.tensor(3.0, device=device)        # 11.411
 criterion_contact = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
 
@@ -51,7 +55,8 @@ criterion_shape = torch.nn.MSELoss()
 writer = SummaryWriter("logs/train")
 global_step = 0
 
-for epoch in range(20):
+'''
+for epoch in range(3):
     model.train()
     for label in loader:
         # TODO: load batch by b["id"], then put to cuda
@@ -105,35 +110,35 @@ for epoch in range(20):
 
                 contact_logits = out["contact_logits"]  # [B,6890]
                 gt_c = label["contact"].float().to(contact_logits.device)
-                # loss_contact = criterion_contact(contact_logits, gt_c)
+                loss_contact = criterion_contact(contact_logits, gt_c)
                 # Use model-provided valid mask if available; otherwise derive from verts_uv
-                valid_mask = out.get("valid_mask", None)
-                if valid_mask is None:
-                    verts_uv = out["verts_uv"]  # [B,6890,2]
-                    valid_mask = (
-                            (verts_uv[..., 0] >= -1.0) & (verts_uv[..., 0] <= 1.0) &
-                            (verts_uv[..., 1] >= -1.0) & (verts_uv[..., 1] <= 1.0)
-                    )
-                valid_mask_f = valid_mask.float()
+                # valid_mask = out.get("valid_mask", None)
+                # if valid_mask is None:
+                #     verts_uv = out["verts_uv"]  # [B,6890,2]
+                #     valid_mask = (
+                #             (verts_uv[..., 0] >= -1.0) & (verts_uv[..., 0] <= 1.0) &
+                #             (verts_uv[..., 1] >= -1.0) & (verts_uv[..., 1] <= 1.0)
+                #     )
+                # valid_mask_f = valid_mask.float()
 
                 # Elementwise BCE + mask
-                bce_elem = F.binary_cross_entropy_with_logits(
-                    contact_logits,
-                    gt_c,
-                    pos_weight=pos_weight,
-                    reduction="none",
-                )
-                loss_contact = (bce_elem * valid_mask_f).sum() / valid_mask_f.sum().clamp(min=1.0)
-                with torch.no_grad():
-                    valid_mask_bool = valid_mask.bool()
-                    pred_contact = contact_logits >= 0.0  # sigmoid(logit) >= 0.5
-                    gt_contact_bin = gt_c >= 0.5
-
-                    correct = (pred_contact == gt_contact_bin) & valid_mask_bool
-                    contact_acc = correct.float().sum() / valid_mask_bool.float().sum().clamp(min=1.0)
-
-                    # optional: useful for monitoring data quality
-                    valid_ratio = valid_mask_bool.float().mean()
+                # bce_elem = F.binary_cross_entropy_with_logits(
+                #     contact_logits,
+                #     gt_c,
+                #     pos_weight=pos_weight,
+                #     reduction="none",
+                # )
+                # loss_contact = (bce_elem * valid_mask_f).sum() / valid_mask_f.sum().clamp(min=1.0)
+                # with torch.no_grad():
+                #     valid_mask_bool = valid_mask.bool()
+                #     pred_contact = contact_logits >= 0.0  # sigmoid(logit) >= 0.5
+                #     gt_contact_bin = gt_c >= 0.5
+                #
+                #     correct = (pred_contact == gt_contact_bin) & valid_mask_bool
+                #     contact_acc = correct.float().sum() / valid_mask_bool.float().sum().clamp(min=1.0)
+                #
+                #     # optional: useful for monitoring data quality
+                #     valid_ratio = valid_mask_bool.float().mean()
 
                 # if(i%100==0):
                     # print("contact probs mean", torch.sigmoid(contact_probs).mean().item())
@@ -154,21 +159,21 @@ for epoch in range(20):
                 #             f"gt_pos_rate={gt_c.mean().item():.4f} "
                 #             f"uv_oob_rate={uv_oob:.4f}"
                 #         )
-                if global_step % 50 == 0:
-                    with torch.no_grad():
-                        probs = torch.sigmoid(contact_logits)
-                        valid_ratio = valid_mask_f.mean().item()
-                        uv_oob = 1.0 - valid_ratio
-                        print(
-                            f"[dbg step={global_step}] "
-                            f"loss_contact={loss_contact.item():.4f} "
-                            f"logit_mean={contact_logits.mean().item():.4f} "
-                            f"logit_std={contact_logits.std().item():.4f} "
-                            f"prob_mean={probs.mean().item():.4f} "
-                            f"gt_pos_rate={gt_c.mean().item():.4f} "
-                            f"valid_ratio={valid_ratio:.4f} "
-                            f"uv_oob_rate={uv_oob:.4f}"
-                        )
+                # if global_step % 50 == 0:
+                #     with torch.no_grad():
+                #         probs = torch.sigmoid(contact_logits)
+                #         valid_ratio = valid_mask_f.mean().item()
+                #         uv_oob = 1.0 - valid_ratio
+                #         print(
+                #             f"[dbg step={global_step}] "
+                #             f"loss_contact={loss_contact.item():.4f} "
+                #             f"logit_mean={contact_logits.mean().item():.4f} "
+                #             f"logit_std={contact_logits.std().item():.4f} "
+                #             f"prob_mean={probs.mean().item():.4f} "
+                #             f"gt_pos_rate={gt_c.mean().item():.4f} "
+                #             f"valid_ratio={valid_ratio:.4f} "
+                #             f"uv_oob_rate={uv_oob:.4f}"
+                #         )
 
                 # mhr = out["mhr"]
                 # pred_pose = mhr["smpl_pose"]        # (1,72)
@@ -181,24 +186,24 @@ for epoch in range(20):
                 #
                 # pred_shape = mhr["smpl_shape"]
                 # loss_shape = criterion_shape(pred_shape, gt_shape_tensor)   # (0.4595)
-                mhr = out["mhr"]
-                pred_pose = mhr["smpl_pose"]  # [B,72]
-                pred_shape = mhr["smpl_shape"]  # [B,10]
+                # mhr = out["mhr"]
+                # pred_pose = mhr["smpl_pose"]  # [B,72]
+                # pred_shape = mhr["smpl_shape"]  # [B,10]
+                #
+                # gt_pose_tensor = torch.as_tensor(label["pose"], dtype=torch.float32, device=pred_pose.device).view_as(
+                #     pred_pose)
+                # gt_shape_tensor = torch.as_tensor(label["shape"], dtype=torch.float32,
+                #                                   device=pred_shape.device).view_as(pred_shape)
 
-                gt_pose_tensor = torch.as_tensor(label["pose"], dtype=torch.float32, device=pred_pose.device).view_as(
-                    pred_pose)
-                gt_shape_tensor = torch.as_tensor(label["shape"], dtype=torch.float32,
-                                                  device=pred_shape.device).view_as(pred_shape)
-
-                loss_pose = criterion_pose(pred_pose, gt_pose_tensor)
-                loss_shape = criterion_shape(pred_shape, gt_shape_tensor)
+                # loss_pose = criterion_pose(pred_pose, gt_pose_tensor)
+                # loss_shape = criterion_shape(pred_shape, gt_shape_tensor)
 
                 # loss = 1.0*loss_contact + 0.2*loss_pose + 0.2*loss_shape    # TODO: add loss weights
 
                 # optimizer.zero_grad()
                 # loss.backward()
 
-                loss = 1.0 * loss_contact + 0.2 * loss_pose + 0.2 * loss_shape
+                loss = 1.0 * loss_contact   # + 0.2 * loss_pose + 0.2 * loss_shape
                 (loss / accum_steps).backward()
 
                 # Step every accum_steps
@@ -220,27 +225,193 @@ for epoch in range(20):
                 writer.add_scalars(
                     "Loss",
                     {
-                        "total": loss.item(),
+                        # "total": loss.item(),
                         "contact": loss_contact.item(),
-                        "pose": loss_pose.item(),
-                        "shape": loss_shape.item(),
+                        # "pose": loss_pose.item(),
+                        # "shape": loss_shape.item(),
                     },
                     global_step
                 )
 
-                writer.add_scalars(
-                    "Metrics",
-                    {
-                        "contact_accuracy": contact_acc.item(),
-                        "valid_ratio": float(valid_ratio),
-                    },
-                    global_step
-                )
+                # writer.add_scalars(
+                #     "Metrics",
+                #     {
+                #         "contact_accuracy": contact_acc.item(),
+                #         "valid_ratio": float(valid_ratio),
+                #     },
+                #     global_step
+                # )
 
                 global_step += 1
         except Exception as e:
             print(f"error: [Epoch: {epoch} i: {i}]")
             print(e)
             traceback.print_exc()
-    # torch.save(model.state_dict(), f"sam3d_damon_{epoch}.pth")
-torch.save(model.state_dict(), f"sam3d_damon_20.pth")
+# torch.save(model.state_dict(), f"sam3d_damon_20.pth")
+'''
+
+# import os
+# import torch
+# import numpy as np
+
+# ... keep your existing imports ...
+
+def merge_loaded_batches(batch_list):
+    """Merge list[dict] from batch_{idx}.pt into one dict with batch dim at dim=0."""
+    merged = {}
+    keys = batch_list[0].keys()
+
+    for k in keys:
+        vals = [b[k] for b in batch_list]
+        v0 = vals[0]
+
+        if torch.is_tensor(v0):
+            # Most fields are [1, ...], concatenate to [B, ...]
+            merged[k] = torch.cat(vals, dim=0)
+        elif isinstance(v0, list):
+            out = []
+            for v in vals:
+                out.extend(v)
+            merged[k] = out
+        elif isinstance(v0, tuple):
+            out = []
+            for v in vals:
+                out.extend(list(v))
+            merged[k] = tuple(out)
+        else:
+            # Keep as list if scalar/string/other metadata
+            merged[k] = vals
+    return merged
+
+
+def select_label_rows(label, keep_rows):
+    """Keep only rows that were successfully loaded from batch_{idx}.pt."""
+    out = {}
+    for k, v in label.items():
+        if torch.is_tensor(v):
+            out[k] = v[keep_rows]
+        elif isinstance(v, np.ndarray):
+            out[k] = v[keep_rows]
+        elif isinstance(v, list):
+            out[k] = [v[i] for i in keep_rows]
+        else:
+            out[k] = v
+    return out
+
+
+def keep_first_person(batch):
+    """Your existing per-sample crop to first person, applied before merge."""
+    num_img = batch["img"].shape[1]
+    if num_img <= 1:
+        return batch
+
+    batch["img"] = batch["img"][:, 0:1, :, :, :]
+    batch["bbox"] = batch["bbox"][:, 0:1, :]
+    batch["bbox_format"] = batch["bbox_format"][:1]
+    batch["mask"] = batch["mask"][:, 0:1, :, :, :]
+    batch["mask_score"] = batch["mask_score"][:, 0:1]
+    batch["bbox_center"] = batch["bbox_center"][:, 0:1, :]
+    batch["bbox_scale"] = batch["bbox_scale"][:, 0:1, :]
+    batch["orig_bbox_scale"] = batch["orig_bbox_scale"][0:1, :]
+    batch["bbox_expand_factor"] = batch["bbox_expand_factor"][:1]
+    batch["ori_img_size"] = batch["ori_img_size"][:, 0:1, :]
+    batch["img_size"] = batch["img_size"][:, 0:1, :]
+    batch["input_size"] = batch["input_size"][0:1, :]
+    batch["affine_trans"] = batch["affine_trans"][:, 0:1, :, :]
+    batch["person_valid"] = batch["person_valid"][:, 0:1]
+    return batch
+
+# add near imports / top-level helpers
+def to_scalar(x):
+    if torch.is_tensor(x):
+        return x.detach().item() if x.numel() == 1 else x.detach().float().mean().item()
+    return float(x)
+
+loader = DataLoader(dataset, batch_size=2, shuffle=True)  # <- set >1
+
+for epoch in range(5):
+    model.train()
+    for label in loader:
+        ids = label["id"].tolist()  # tensor([..]) -> [..]  tensor([1516, 3669])
+
+        loaded_batches = []
+        keep_rows = []
+
+        for row, idx in enumerate(ids):
+            path = f"{output_folder}/batch_{int(idx)}.pt"
+            if not os.path.exists(path):
+                print(f"Missing file: {path}")
+                continue
+
+            b = torch.load(path, map_location="cpu", weights_only=False)
+            b = keep_first_person(b)
+            loaded_batches.append(b)
+            keep_rows.append(row)
+
+        # if all missing, skip this loader step
+        if len(loaded_batches) == 0:
+            continue
+
+        # merge model batch dicts to one mini-batch
+        batch = merge_loaded_batches(loaded_batches)
+
+        # keep only labels that correspond to loaded batch files
+        label = select_label_rows(label, keep_rows)
+
+        label = recursive_to(label, device.type)
+        batch = recursive_to(batch, device.type)
+
+        out = model(batch, label)
+        contact_logits = out["contact_logits"]  # [B_loaded, 6890]
+        gt_c = label["contact"].float().to(contact_logits.device)  # [B_loaded, 6890]
+
+        loss_contact = criterion_contact(contact_logits, gt_c)
+        with torch.no_grad():
+            # logits>=0 <=> sigmoid(logits)>=0.5
+            pred_bin = (contact_logits >= 0.0)
+            gt_bin = (gt_c >= 0.5)
+
+            # if model provides valid mask, use masked accuracy
+            valid_mask = out.get("valid_mask", None)
+            if valid_mask is not None:
+                valid_mask = valid_mask.bool()
+                correct = (pred_bin == gt_bin) & valid_mask
+                denom = valid_mask.float().sum().clamp(min=1.0)
+                contact_acc = correct.float().sum() / denom
+                valid_ratio = valid_mask.float().mean()
+            else:
+                contact_acc = (pred_bin == gt_bin).float().mean()
+                valid_ratio = torch.tensor(1.0, device=contact_logits.device)
+
+            # optional diagnostics
+            gt_pos_rate = gt_bin.float().mean()
+            pred_pos_rate = pred_bin.float().mean()
+        loss = loss_contact
+        (loss / accum_steps).backward()
+
+        if (global_step + 1) % accum_steps == 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            optimizer.zero_grad(set_to_none=True)
+
+        # writer.add_scalars("Loss", {"contact": loss_contact.item()}, global_step)
+        writer.add_scalars(
+            "Loss",
+            {
+                "contact": to_scalar(loss_contact),
+            },
+            global_step,
+        )
+
+        writer.add_scalars(
+            "Metrics",
+            {
+                "contact_accuracy": to_scalar(contact_acc),
+                "valid_ratio": to_scalar(valid_ratio),
+                "gt_pos_rate": to_scalar(gt_pos_rate),
+                "pred_pos_rate": to_scalar(pred_pos_rate),
+            },
+            global_step,
+        )
+        global_step += 1
+
