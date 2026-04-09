@@ -99,8 +99,8 @@ class ContactHead(nn.Module):
             nn.Linear(3, d_model),
             nn.LayerNorm(d_model),
         )
-        # trainable per-vertex identity embedding
-        self.vert_id_emb = nn.Parameter(torch.randn(1, num_verts, d_model) * 0.02)
+        # # trainable per-vertex identity embedding
+        # self.vert_id_emb = nn.Parameter(torch.randn(1, num_verts, d_model) * 0.02)
         # trainable positional embedding
         self.vert_pos_emb = nn.Parameter(torch.randn(1, num_verts, d_model) * 0.02)
 
@@ -122,7 +122,8 @@ class ContactHead(nn.Module):
         xyz_feat = xyz_feat.unsqueeze(0).expand(batch_size, -1, -1)  # (B,6890,1280)
 
         # add trainable id + positional embedding
-        tokens = xyz_feat + self.vert_id_emb + self.vert_pos_emb  # (B,6890,1280)
+        # tokens = xyz_feat + self.vert_id_emb + self.vert_pos_emb  # (B,6890,1280)
+        tokens = xyz_feat + self.vert_pos_emb  # (B,6890,1280)
         return tokens
 
     def forward(self, feat_map, return_prob=False):
