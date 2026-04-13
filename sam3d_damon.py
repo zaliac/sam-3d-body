@@ -9,8 +9,8 @@ from sam_3d_body.build_models import load_sam_3d_body
 from contact_head_linear7 import ContactHead
 import torch
 
-from util_smpl import smpl_to_uv_batch
-import smplx
+# from util_smpl import smpl_to_uv_batch
+# import smplx
 
 class Sam3DWithContact(nn.Module):
     def __init__(self, checkpoint_path):
@@ -18,7 +18,7 @@ class Sam3DWithContact(nn.Module):
         super().__init__()
 
         # self.sam3d = build_model(checkpoint_path)
-        self.sam3d,self.model_cfg = load_sam_3d_body(checkpoint_path)     # "sam3d_body.pth"     SAM3DBody
+        self.sam3d,self.model_cfg = load_sam_3d_body(checkpoint_path, device="cpu")     # "sam3d_body.pth"     SAM3DBody
 
         # Freeze image encoder (recommended)
         # for p in self.sam3d.image_encoder.parameters():

@@ -117,7 +117,8 @@ class MHRHead(nn.Module):
         else:
             self.mhr = torch.jit.load(      # train_damon: here
                 mhr_model_path,
-                map_location=("cuda" if torch.cuda.is_available() else "cpu"),
+                # map_location=("cuda" if torch.cuda.is_available() else "cpu"),
+                map_location="cpu",
             )
 
         for param in self.mhr.parameters():

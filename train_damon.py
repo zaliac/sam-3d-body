@@ -16,10 +16,35 @@ from sam_3d_body.utils import recursive_to
 from torch.utils.tensorboard import SummaryWriter
 import os
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+def get_safe_device():
+    """
+    Safely check CUDA availability and initialization.
+    Fallback to CPU if CUDA init fails.
+    """
+    if not torch.cuda.is_available():
+        print("[info] CUDA not available, using CPU")
+        return torch.device("cpu")
+
+    try:
+        # Test actual CUDA initialization
+        _ = torch.cuda.current_device()
+        device_name = torch.cuda.get_device_name(0)
+        print(f"[info] Using CUDA device: {device_name}")
+        return torch.device("cuda")
+    except Exception as e:
+        print(f"[warn] CUDA init failed: {e}")
+        print("[info] Falling back to CPU")
+        return torch.device("cpu")
+
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = get_safe_device()
 
 # model = Sam3DDamon().to(device)
-model = Sam3DWithContact('checkpoints/sam-3d-body-dinov3/model.ckpt').to(device)       # checkpoints/sam-3d-body-dinov3
+model = Sam3DWithContact('checkpoints/sam-3d-body-dinov3/model.ckpt')       # checkpoints/sam-3d-body-dinov3
+
+model = model.to(device)
+print(f"[info] Model moved to {device}")
 
 # optimizer = torch.optim.AdamW(
 #     filter(lambda p: p.requires_grad, model.parameters()),
@@ -29,7 +54,7 @@ optimizer = torch.optim.AdamW(
     model.contact_head.parameters(),  # ← explicitly only contact_head
     lr=5e-4
 )
-accum_steps = 32       # 8, 32
+accum_steps = 4       # 8, 32
 optimizer.zero_grad(set_to_none=True)
 
 # ckpt = torch.load("sam3d_damon_1.pth", map_location=device)
@@ -329,7 +354,7 @@ def to_scalar(x):
 
 loader = DataLoader(dataset, batch_size=2, shuffle=True)  # <- set >1
 
-for epoch in range(5):
+for epoch in range(10):
     model.train()
     for label in loader:
         ids = label["id"].tolist()  # tensor([..]) -> [..]  tensor([1516, 3669])
@@ -415,3 +440,6 @@ for epoch in range(5):
         )
         global_step += 1
 
+from datetime import datetime
+ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+torch.save(model.state_dict(), f"sam3d_damon_20_{ts}.pth")

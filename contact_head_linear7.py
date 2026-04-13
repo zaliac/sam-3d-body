@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import smplx
+# import smplx
 
 
 class CrossAttnBlock(nn.Module):
@@ -59,19 +59,19 @@ class ContactHead(nn.Module):
         self.num_verts = num_verts
 
         # ---- Build canonical SMPL vertices (once) ----
-        smpl = smplx.create(
-            model_path=smpl_model_dir,
-            model_type="smpl",
-            gender=smpl_gender,
-            use_pca=False,
-            batch_size=1,
-            num_betas=num_betas,
-        )
-        smpl.eval()
-        for p in smpl.parameters():
-            p.requires_grad = False
-        self.smpl = smpl
-
+        # smpl = smplx.create(
+        #     model_path=smpl_model_dir,
+        #     model_type="smpl",
+        #     gender=smpl_gender,
+        #     use_pca=False,
+        #     batch_size=1,
+        #     num_betas=num_betas,
+        # )
+        # smpl.eval()
+        # for p in smpl.parameters():
+        #     p.requires_grad = False
+        # self.smpl = smpl
+        '''
         with torch.no_grad():
             betas = torch.zeros(1, num_betas)
             body_pose = torch.zeros(1, 23 * 3)  # axis-angle
@@ -85,10 +85,13 @@ class ContactHead(nn.Module):
                 return_verts=True,
             )
             canonical_verts = out.vertices[0]  # (6890, 3)
+            torch.save(canonical_verts, "data/models/smpl/canonical_verts.pt")
             if canonical_verts.shape[0] != num_verts:
                 raise ValueError(
                     f"Expected {num_verts} verts, got {canonical_verts.shape[0]}"
                 )
+        '''
+        canonical_verts = torch.load("data/models/smpl/canonical_verts.pt", map_location="cpu")
 
         # buffer: fixed canonical xyz
         self.register_buffer("canonical_verts", canonical_verts, persistent=True)

@@ -7,7 +7,7 @@ from .utils.config import get_config
 from .utils.checkpoint import load_state_dict
 
 
-def load_sam_3d_body(checkpoint_path: str = "", device: str = "cuda", mhr_path: str = "mhr_model.pt"):      # mhr_model.pt
+def load_sam_3d_body(checkpoint_path: str = "", device: str = "cpu", mhr_path: str = "mhr_model.pt"):      # cuda mhr_model.pt
     print("Loading SAM 3D Body model...")
     
     # Check the current directory, and if not present check the parent dir.
